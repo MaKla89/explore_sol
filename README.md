@@ -4,7 +4,7 @@ A 3D, browser-based solar system for kids: fly through space with WASD + mouse,
 click any planet to travel to it, and watch a real solar eclipse play out over Earth.
 
 By default everything (textures included) is generated **procedurally in the browser**
-— no image files, no server, works fully offline. There is also an optional **📷 Photos**
+— no image files, no server. There is also an optional **📷 Photos**
 mode that swaps in real planet photographs (loaded from the internet); if a photo can't
 be loaded, that body simply keeps its procedural texture, so you never see broken images.
 
@@ -16,15 +16,17 @@ Just open `index.html` in a modern browser (Chrome, Edge, Firefox, Safari).
 
 That's it. No build step, no dependencies to install.
 
-> **Internet needed once:** the page loads Three.js from a CDN
-> (`cdn.jsdelivr.net`) on startup. After that it works fully offline.
-> The download is verified against a SHA-384 checksum (Subresource Integrity)
+> **Internet needed to start:** the page loads the 3D engine (Three.js) from a CDN
+> (`cdn.jsdelivr.net`) on startup, so an internet connection is required for the app
+> to launch. The download is verified against a SHA-384 checksum (Subresource Integrity)
 > *before* it runs, so tampered or altered content is never executed.
 > If the CDN is unreachable, a friendly error screen explains what happened.
+> (Your browser may keep the file in its cache after the first visit, which can let
+> a reload work offline — but that's not guaranteed.)
 >
 > The optional 📷 Photos mode additionally downloads real planet textures (from
-> `raw.githubusercontent.com`). Without internet you can still use the app — it just
-> stays on its built-in procedural textures.
+> `raw.githubusercontent.com`). Any photo that fails to load simply keeps its
+> procedural texture.
 
 Optional — serve it statically if you prefer:
 
