@@ -172,6 +172,7 @@
       <button id="langBtn">DE</button>
       <button id="texBtn">📷 Photos</button>
       <button id="labelsBtn" class="active">Labels</button>
+      <button id="scaleBtn" title="Toggle true-to-scale planet sizes">🔬 Real size</button>
       <button id="placesBtn">🗺 Places</button>
     </div>
   </div>
@@ -281,6 +282,7 @@ const I18N = {
     placesTitle: 'Where to fly?',
     texPhoto: '📷 Photos',
     eclipseBtn: '🌑 Eclipse',
+    scaleBtn: '🔬 Real size',
     homeTitle: 'Back to start view',
     playPause: 'Pause / Play',
     eclipseBanner: 'Solar eclipse! Watch the Moon\u2019s shadow cross Earth. The dark spot is the umbra — there, day turns into night for a few minutes.',
@@ -300,6 +302,7 @@ const I18N = {
       ['🗺 Places', 'List of every place you can fly to — click one to travel there'],
       ['📷 Photos', 'Switch between real planet photos and the built-in drawings (which work offline)'],
       ['🌑 Eclipse', 'Start a solar eclipse over Earth!'],
+      ['🔬 Real size', 'Show every planet at its true size relative to the Sun — they get tiny!'],
     ],
     creditsTitle: 'Credits',
     credits: [
@@ -360,6 +363,7 @@ const I18N = {
     placesTitle: 'Wohin fliegen?',
     texPhoto: '📷 Fotos',
     eclipseBtn: '🌑 Finsternis',
+    scaleBtn: '🔬 Echte Größe',
     homeTitle: 'Zurück zur Startansicht',
     playPause: 'Pause / Abspielen',
     eclipseBanner: 'Sonnenfinsternis! Schau, wie der Schatten des Mondes über die Erde wandert. Der dunkle Punkt ist die Kernschattenzone (Umbra) — dort wird aus Tag für ein paar Minuten Nacht.',
@@ -379,6 +383,7 @@ const I18N = {
       ['🗺 Orte', 'Liste aller Orte, zu denen du fliegen kannst — anklicken zum Hinfliegen'],
       ['📷 Fotos', 'Wechselt zwischen echten Planetenfotos und den eingebauten Zeichnungen (die offline funktionieren)'],
       ['🌑 Finsternis', 'Startet eine Sonnenfinsternis über der Erde!'],
+      ['🔬 Echte Größe', 'Zeigt jeden Planeten in seiner wahren Größe relativ zur Sonne — sie werden winzig!'],
     ],
     creditsTitle: 'Danksagungen',
     credits: [
@@ -727,6 +732,17 @@ function setBodyMap(key, usePhoto) {
 // =====================================================================
 const SUN_R = 7, MOON_R = 0.45, MOON_DIST = 3.2;
 
+// --- "Real size" mode -------------------------------------------------
+// True equatorial radii in km (NASA fact sheet). In real-size mode every
+// body is scaled so its radius is proportional to reality relative to the
+// Sun (the Sun itself stays at SUN_R — it is our reference). Orbits keep
+// their compressed distances; only the bodies shrink.
+const REAL_KM = {
+  sun: 696340, mercury: 2439.7, venus: 6051.8, earth: 6371, moon: 1737.4,
+  mars: 3389.5, jupiter: 69911, saturn: 58232, uranus: 25362, neptune: 24622,
+};
+const realSceneR = key => SUN_R * REAL_KM[key] / REAL_KM.sun;
+
 // Planets: `dist` is the semi-major axis in scene units (compressed scale).
 // The orbital elements e (eccentricity), inc (inclination to the ecliptic),
 // node (Ω, longitude of ascending node), periLon (ϖ, longitude of perihelion)
@@ -939,6 +955,7 @@ function buildPlanet(p) {
       new THREE.MeshBasicMaterial({ color: 0x4a90d9, transparent: true, opacity: 0.13, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false })
     );
     group.add(atmo);
+    p.atmo = atmo;   // kept so real-size mode can scale it with the globe
   }
 
   // Saturn rings
@@ -1126,6 +1143,53 @@ function updateAnalyticShadows() {
   }
 }
 
+// =====================================================================
+//  Real-size mode: shrink every body to its true radius (relative to Sun)
+// =====================================================================
+// Scales the visual meshes (globe, clouds, atmosphere, rings, Moon) by the
+// ratio realRadius/displayRadius, and keeps the analytic-shadow uniforms in
+// sync so ring/eclipse shadows still line up with the smaller bodies.
+function applyRealScale(on) {
+  for (const p of PLANETS) {
+    const b = bodies[p.key];
+    const f = on ? realSceneR(p.key) / p.r : 1;
+    b.mesh.scale.setScalar(f);
+    if (b.clouds) b.clouds.scale.setScalar(f);
+    if (p.atmo) p.atmo.scale.setScalar(f);
+    if (p.key === 'saturn' && saturnRings) {
+      saturnRings.scale.setScalar(f);
+      SATURN_RING.inner = p.r * 1.25 * f;
+      SATURN_RING.outer = p.r * 2.15 * f;
+      for (const m of [b.mesh.material, saturnRings.material]) {
+        m.userData.analyticUniforms.uRingRadii.value.set(SATURN_RING.inner, SATURN_RING.outer);
+      }
+    }
+  }
+  moonMesh.scale.setScalar(on ? realSceneR('moon') / MOON_R : 1);
+
+  // Occluder radii used by the analytic shadows (Moon on Earth, Earth on Moon,
+  // Saturn on its rings) must match the scaled sizes.
+  const moonOccR   = on ? realSceneR('moon')   : MOON_R;
+  const earthOccR  = on ? realSceneR('earth')  : bodies.earth.radius;
+  const saturnOccR = on ? realSceneR('saturn') : bodies.saturn.radius;
+  for (const m of [bodies.earth.mesh.material, bodies.earth.clouds && bodies.earth.clouds.material]) {
+    if (m) m.userData.analyticUniforms.uOccR.value = moonOccR;
+  }
+  moonMesh.material.userData.analyticUniforms.uOccR.value = earthOccR;
+  if (saturnRings) saturnRings.material.userData.analyticUniforms.uOccR.value = saturnOccR;
+
+  // keep the name labels hugging the (now smaller) bodies instead of floating
+  // far above them at their old display-size offsets
+  for (const ls of labelSprites) {
+    const k = ls.key;
+    if (k === 'belt') continue;                 // fixed point on the belt ring
+    if (k === 'sun') { ls.sp.position.y = SUN_R + 3.5; continue; }   // sun is the reference, unchanged
+    const r = on ? Math.max(realSceneR(k), 0.15) : (k === 'moon' ? MOON_R : bodies[k].radius);
+    const gap = on ? Math.max(0.5, r * 0.6) : (k === 'moon' ? 0.9 : Math.max(1.2, r * 0.5));
+    ls.sp.position.y = r + gap;
+  }
+}
+
 // --- asteroid belt ----------------------------------------------------
 // two layers: main rocks (2× the old count) + a dense layer of tiny dust
 // fragments, so the small objects are by far the most numerous.
@@ -1203,7 +1267,9 @@ function addLabel(key, parent, yOffset) {
 }
 addLabel('sun', scene, SUN_R + 3.5);
 for (const p of PLANETS) addLabel(p.key, bodies[p.key].group, p.r + Math.max(1.2, p.r * 0.5));
-addLabel('moon', moonMesh, MOON_R + 0.9);
+// Moon label lives in the scene (not on moonMesh) so real-size scaling of the
+// mesh can't shrink it; its position is tracked in updatePositions().
+const moonLabel = addLabel('moon', scene, MOON_R + 0.9);
 { // belt label at a fixed point on the ring
   const sp = makeLabelSprite(t().bodies.belt.name);
   sp.position.set((BELT_INNER + BELT_OUTER) / 2, 2.5, 0);
@@ -1233,6 +1299,7 @@ let daysPerSecond = 0.02;
 let paused = false;
 let eclipseMode = false;
 let savedDps = 0.02;
+let realScale = localStorage.getItem('ssx_realscale') === '1';   // off by default
 
 const earthPos = new THREE.Vector3();
 const moonPos = new THREE.Vector3();
@@ -1254,6 +1321,10 @@ function updatePositions() {
   );
   moonMesh.position.copy(moonPos);
   moonMesh.rotation.y = ma + Math.PI;   // tidally locked
+
+  // keep the (scene-parented) Moon label above the scaled Moon
+  const mr = realScale ? Math.max(realSceneR('moon'), 0.15) : MOON_R;
+  moonLabel.position.set(moonPos.x, moonPos.y + mr + (realScale ? 0.5 : 0.9), moonPos.z);
 
   moonOrbitGroup.position.copy(earthPos);
   moonOrbitLine.rotation.x = -moonInc;
@@ -1281,9 +1352,16 @@ function bodyWorldPos(key) {
   return bodies[key].group.position.clone();
 }
 function bodyRadius(key) {
-  if (key === 'sun') return SUN_R;
-  if (key === 'moon') return MOON_R;
-  return bodies[key].radius;
+  let r;
+  if (key === 'sun') r = SUN_R;
+  else if (key === 'moon') r = MOON_R;
+  else r = bodies[key].radius;
+  if (realScale) {
+    // true-to-scale radius, floored so tiny planets stay outside the camera's
+    // near plane and keep a sensible minimum approach distance
+    r = Math.max(realSceneR(key), 0.15);
+  }
+  return r;
 }
 
 function startFlightTo(key) {
@@ -1491,6 +1569,7 @@ function stopEclipse() {
 
 function updateEclipseCones() {
   if (!eclipseMode) return;
+  const mR = realScale ? realSceneR('moon') : MOON_R;          // Moon radius in current scale mode
   const sunP = new THREE.Vector3(0, 0, 0);
   const dir = moonPos.clone().sub(sunP).normalize();          // Sun -> Moon (and on to Earth)
   const dMoon = moonPos.length();
@@ -1501,19 +1580,19 @@ function updateEclipseCones() {
   // umbra CONVERGES (tangent rays from the Sun's far edge cross) while the
   // penumbra diverges. We match that exactly so the drawn cones line up with
   // the real dark spot rendered on Earth.
-  const rUmbraEnd = Math.max(MOON_R - xL * ((SUN_R - MOON_R) / dMoon), 0.02); // extended-Sun umbra edge
-  const rPenEnd   = MOON_R + xL * ((SUN_R + MOON_R) / dMoon);                // penumbra edge
+  const rUmbraEnd = Math.max(mR - xL * ((SUN_R - mR) / dMoon), 0.02); // extended-Sun umbra edge
+  const rPenEnd   = mR + xL * ((SUN_R + mR) / dMoon);                // penumbra edge
 
-  // cylinder local +Y is mapped to -dir, so the TOP (r=MOON_R) sits at the Moon
+  // cylinder local +Y is mapped to -dir, so the TOP (r=mR) sits at the Moon
   umbraCone.scale.set(1, 1, 1);
   umbraCone.geometry.dispose();
-  umbraCone.geometry = new THREE.CylinderGeometry(MOON_R, rUmbraEnd, xL, 32, 1, true);
+  umbraCone.geometry = new THREE.CylinderGeometry(mR, rUmbraEnd, xL, 32, 1, true);
   umbraCone.position.copy(moonPos).addScaledVector(dir, xL / 2);
   umbraCone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().negate());
 
   penumbraCone.scale.set(1, 1, 1);
   penumbraCone.geometry.dispose();
-  penumbraCone.geometry = new THREE.CylinderGeometry(MOON_R, rPenEnd, xL, 32, 1, true);
+  penumbraCone.geometry = new THREE.CylinderGeometry(mR, rPenEnd, xL, 32, 1, true);
   penumbraCone.position.copy(moonPos).addScaledVector(dir, xL / 2);
   penumbraCone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().negate());
 }
@@ -1544,6 +1623,7 @@ function applyLang() {
   buildPlaces();
   $('texBtn').textContent = L.texPhoto;
   $('eclipseBtn').textContent = L.eclipseBtn;
+  $('scaleBtn').textContent = L.scaleBtn;
   $('homeBtn').title = L.homeTitle;
   $('playBtn').title = L.playPause;
   $('helpTitle').textContent = L.helpTitle;
@@ -1578,6 +1658,15 @@ $('labelsBtn').onclick = () => {
   const on = !$('labelsBtn').classList.contains('active');
   $('labelsBtn').classList.toggle('active', on);
   for (const ls of labelSprites) ls.sp.visible = on;
+};
+
+// --- real-size mode: true-to-scale planet radii (off by default) --------
+function refreshScaleBtn() { $('scaleBtn').classList.toggle('active', realScale); }
+$('scaleBtn').onclick = () => {
+  realScale = !realScale;
+  localStorage.setItem('ssx_realscale', realScale ? '1' : '0');
+  refreshScaleBtn();
+  applyRealScale(realScale);
 };
 
 // --- places list: every clickable body, one click to fly there ---------
@@ -1774,6 +1863,8 @@ async function start() {
   refreshPlayBtn();
   refreshSpeedUI();
   refreshPlaces();
+  refreshScaleBtn();
+  applyRealScale(realScale);
   updatePositions();
 
   if (texMode === 'photo') {
