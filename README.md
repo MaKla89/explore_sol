@@ -1,9 +1,7 @@
 # Solar System Explorer / Sonnensystem-Entdecker
 
 A 3D, browser-based solar system for kids: fly through space with WASD + mouse,
-tap or click any planet to travel to it, and watch a real solar eclipse play out
-over Earth. Works on desktop **and on phones/tablets** — the layout adapts to
-small screens and all controls have touch equivalents (see below).
+click any planet to travel to it, and watch a real solar eclipse play out over Earth.
 
 By default everything (textures included) is generated **procedurally in the browser**
 — no image files, no server. There is also an optional **📷 Photos**
@@ -43,10 +41,6 @@ python3 -m http.server 8000
 | Key / Action | EN | DE |
 |---|---|---|
 | Mouse drag | look around | Umschauen |
-| Touch & drag (one finger) | look around | Tippen & ziehen (ein Finger): umschauen |
-| Pinch (two fingers) | zoom in / out | Mit zwei Fingern kneifen: hinein-/herauszoomen |
-| Drag with two fingers | fly in the direction you drag (map-style pan) | Mit zwei Fingern ziehen: in die Zugrichtung fliegen |
-| Tap a planet / the Sun / the Moon | fly to it and follow it | Auf einen Planeten tippen: dorthin fliegen und ihm folgen |
 | `W` `A` `S` `D` | fly forward / left / back / right | Vorwärts / links / rückwärts / rechts fliegen |
 | `Space` | fly up | Nach oben fliegen |
 | `Ctrl` | fly down | Nach unten fliegen |
@@ -93,18 +87,14 @@ python3 -m http.server 8000
 - **🔬 Real size mode**: every planet at its true radius relative to the Sun —
   Mercury becomes a speck, Jupiter still dwarfs everything else.
 - **📏 Compare mode**: all 8 planets lined up side by side (largest → smallest) at
-  their true *relative* sizes, with the Sun parked above the row as the light source,
+  their true *relative* sizes, with the Sun above the row at its true scale too — so
+  vast that only its lower limb fits on screen. It acts as the light source,
   so each planet keeps a proper day/night terminator. Orbits and the asteroid belt
   are hidden; the name labels form one neat line above the row. Great for seeing how
   big the planets really are compared to each other.
 - **🗺 Places list**: a hideable panel listing every place you can visit — click an entry
   to fly there, no hunting for dark dots. The place you're following is highlighted.
 - **Bilingual UI** (English / German), language choice is remembered.
-- **Phone & tablet support**: the interface adapts to small screens — compact
-  emoji buttons, the info card and the places list become bottom sheets, and all
-  controls work with touch (one finger = look around, tap = fly there, pinch =
-  zoom, two-finger drag = fly). The help window (?) automatically shows the
-  touch instructions on touch devices.
 
 ## The eclipse mode 🌑
 
