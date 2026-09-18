@@ -53,7 +53,9 @@ python3 -m http.server 8000
 | `?` | help / controls | Hilfe / Steuerung |
 | EN / DE button | switch language (remembered) | Sprache wechseln (wird gemerkt) |
 | 📷 Photos button | switch between real photos and built-in drawings (remembered) | Zwischen echten Fotos und eingebauten Zeichnungen wechseln (wird gemerkt) |
-| 🗺 Places button | show/hide the list of all places you can fly to (remembered) | Liste aller Orte ein-/ausblenden, zu denen du fliegen kannst (wird gemerkt) |
+| � Real size button | show every planet at its true size relative to the Sun — they get tiny! (remembered) | Zeigt jeden Planeten in seiner wahren Größe relativ zur Sonne — sie werden winzig! (wird gemerkt) |
+| 📏 Compare button | line up all 8 planets side by side at their true relative sizes, with the Sun above as light source (remembered) | Stellt alle 8 Planeten nebeneinander in ihrer wahren relativen Größe auf, mit der Sonne als Lichtquelle darüber (wird gemerkt) |
+| �🗺 Places button | show/hide the list of all places you can fly to (remembered) | Liste aller Orte ein-/ausblenden, zu denen du fliegen kannst (wird gemerkt) |
 | Labels button | show/hide name labels | Namen ein-/ausblenden |
 
 ## Features
@@ -82,6 +84,13 @@ python3 -m http.server 8000
   rocks + 1500 tiny dust fragments).
 - **Time controls**: pause, or run at 0.02 / 0.05 / 0.1 / 0.5 / 1 / 5 / 20 / 60 days
   per second (the slow settings are great for watching the Moon's shadow cross Earth).
+- **🔬 Real size mode**: every planet at its true radius relative to the Sun —
+  Mercury becomes a speck, Jupiter still dwarfs everything else.
+- **📏 Compare mode**: all 8 planets lined up side by side (largest → smallest) at
+  their true *relative* sizes, with the Sun parked above the row as the light source,
+  so each planet keeps a proper day/night terminator. Orbits and the asteroid belt
+  are hidden; the name labels form one neat line above the row. Great for seeing how
+  big the planets really are compared to each other.
 - **🗺 Places list**: a hideable panel listing every place you can visit — click an entry
   to fly there, no hunting for dark dots. The place you're following is highlighted.
 - **Bilingual UI** (English / German), language choice is remembered.

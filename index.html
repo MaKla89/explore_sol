@@ -173,6 +173,7 @@
       <button id="texBtn">📷 Photos</button>
       <button id="labelsBtn" class="active">Labels</button>
       <button id="scaleBtn" title="Toggle true-to-scale planet sizes">🔬 Real size</button>
+      <button id="compareBtn" title="Line up all planets side by side at true relative size">📏 Compare</button>
       <button id="placesBtn">🗺 Places</button>
     </div>
   </div>
@@ -283,9 +284,11 @@ const I18N = {
     texPhoto: '📷 Photos',
     eclipseBtn: '🌑 Eclipse',
     scaleBtn: '🔬 Real size',
+    compareBtn: '📏 Compare',
     homeTitle: 'Back to start view',
     playPause: 'Pause / Play',
     eclipseBanner: 'Solar eclipse! Watch the Moon\u2019s shadow cross Earth. The dark spot is the umbra — there, day turns into night for a few minutes.',
+    eclipseBlocked: 'Eclipses need true-to-scale distances — turn off 🔬 Real size first (the orbits here are compressed, so the tiny Moon can\u2019t cast a real shadow).',
     infoHint: 'Press Esc or click empty space to stop following. Drag to look around, WASD to move.',
     helpTitle: 'How to play',
     helpClose: 'OK',
@@ -303,6 +306,7 @@ const I18N = {
       ['📷 Photos', 'Switch between real planet photos and the built-in drawings (which work offline)'],
       ['🌑 Eclipse', 'Start a solar eclipse over Earth!'],
       ['🔬 Real size', 'Show every planet at its true size relative to the Sun — they get tiny!'],
+      ['📏 Compare', 'Line up all 8 planets side by side at their true relative sizes, with the Sun above — see how big they really are!'],
     ],
     creditsTitle: 'Credits',
     credits: [
@@ -364,9 +368,11 @@ const I18N = {
     texPhoto: '📷 Fotos',
     eclipseBtn: '🌑 Finsternis',
     scaleBtn: '🔬 Echte Größe',
+    compareBtn: '📏 Vergleich',
     homeTitle: 'Zurück zur Startansicht',
     playPause: 'Pause / Abspielen',
     eclipseBanner: 'Sonnenfinsternis! Schau, wie der Schatten des Mondes über die Erde wandert. Der dunkle Punkt ist die Kernschattenzone (Umbra) — dort wird aus Tag für ein paar Minuten Nacht.',
+    eclipseBlocked: 'Finsternisse brauchen echte Entfernungen — schalte zuerst 🔬 Echte Größe aus (die Bahnen hier sind gestaucht, daher kann der winzige Mond keinen echten Schatten werfen).',
     infoHint: 'Drücke Esc oder klicke in den leeren Raum, um das Folgen zu beenden. Ziehen zum Umschauen, WASD zum Fliegen.',
     helpTitle: 'So geht\u2019s',
     helpClose: 'OK',
@@ -384,6 +390,7 @@ const I18N = {
       ['📷 Fotos', 'Wechselt zwischen echten Planetenfotos und den eingebauten Zeichnungen (die offline funktionieren)'],
       ['🌑 Finsternis', 'Startet eine Sonnenfinsternis über der Erde!'],
       ['🔬 Echte Größe', 'Zeigt jeden Planeten in seiner wahren Größe relativ zur Sonne — sie werden winzig!'],
+      ['📏 Vergleich', 'Stellt alle 8 Planeten nebeneinander in ihrer echten relativen Größe auf, mit der Sonne darüber — so seht ihr, wie groß sie wirklich sind!'],
     ],
     creditsTitle: 'Danksagungen',
     credits: [
@@ -980,7 +987,7 @@ function buildPlanet(p) {
   }
 
   scene.add(group);
-  makeOrbitPath(p, 0x4a6aa8, scene);
+  p.orbitLine = makeOrbitPath(p, 0x4a6aa8, scene);
 
   bodies[p.key] = { key: p.key, group, tiltG, mesh, clouds: p.clouds || null, radius: p.r, dist: p.dist, period: p.period, rotDays: p.rotDays };
   pickables.push(mesh);
@@ -1087,6 +1094,7 @@ function applyAnalyticShadow(mat, opts) {
     uRingRadii: { value: new THREE.Vector2(SATURN_RING.inner, SATURN_RING.outer) },
     uRingTex: { value: opts.ring ? saturnRings.material.map : null },   // same texture the rings render with
     uSunAng: { value: opts.angR },
+    uShadowOn: { value: 1 },   // 0 in Compare mode (the Sun is not at the origin there)
   };
   mat.userData.analyticUniforms = uniforms;   // kept for the per-frame updates
   mat.onBeforeCompile = shader => {
@@ -1097,13 +1105,13 @@ function applyAnalyticShadow(mat, opts) {
       .replace('#include <common>', '#include <common>\nvarying vec3 vAsWorldPos;')
       .replace('#include <project_vertex>', '#include <project_vertex>\n\tvAsWorldPos = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vAsWorldPos;\n' + analyticShadowGLSL(opts))
+      .replace('#include <common>', '#include <common>\nvarying vec3 vAsWorldPos;\nuniform float uShadowOn;\n' + analyticShadowGLSL(opts))
       // onBeforeCompile runs BEFORE the #include chunks are expanded, so we must
       // anchor on a literal include token. Right after lights_fragment_begin all
       // direct (sun) light is accumulated in reflectedLight — multiply it there;
       // ambient stays, so the night side is unchanged.
       .replace('#include <lights_fragment_begin>',
-               '#include <lights_fragment_begin>\n\tfloat asf = analyticShadowFactor( vAsWorldPos, geometryNormal );\n\treflectedLight.directDiffuse *= asf;\n\treflectedLight.directSpecular *= asf;');
+               '#include <lights_fragment_begin>\n\tif ( uShadowOn > 0.5 ) { float asf = analyticShadowFactor( vAsWorldPos, geometryNormal ); reflectedLight.directDiffuse *= asf; reflectedLight.directSpecular *= asf; }');
   };
   mat.customProgramCacheKey = () => (opts.moon ? 'am' : '') + (opts.ring ? 'ar' : '');
 }
@@ -1141,6 +1149,15 @@ function updateAnalyticShadows() {
       u.uRingNormal.value.copy(ringNormalV);
     }
   }
+}
+
+// Enable / disable the analytic (Moon & ring) shadows. They assume the Sun sits
+// at the origin, so they are switched OFF in Compare mode — there the PointLight
+// already gives a correct day/night terminator from the Sun's real position.
+function setAnalyticShadows(on) {
+  const mats = [bodies.earth.mesh.material, bodies.earth.clouds && bodies.earth.clouds.material,
+    moonMesh.material, bodies.saturn.mesh.material, saturnRings && saturnRings.material];
+  for (const m of mats) if (m && m.userData.analyticUniforms) m.userData.analyticUniforms.uShadowOn.value = on ? 1 : 0;
 }
 
 // =====================================================================
@@ -1187,6 +1204,112 @@ function applyRealScale(on) {
     const r = on ? Math.max(realSceneR(k), 0.15) : (k === 'moon' ? MOON_R : bodies[k].radius);
     const gap = on ? Math.max(0.5, r * 0.6) : (k === 'moon' ? 0.9 : Math.max(1.2, r * 0.5));
     ls.sp.position.y = r + gap;
+  }
+}
+
+// =====================================================================
+//  Compare mode: line up all 8 planets side by side at true relative size
+// =====================================================================
+// A "size comparison" view: every planet is placed on a straight row, right
+// next to each other (largest → smallest), scaled so its radius is proportional
+// to reality *relative to the other planets*. The Sun is parked above the row
+// and acts as the light source, so each planet still shows a proper day/night
+// terminator. Orbits, the asteroid belt and the Moon's orbit are hidden; the
+// planets keep spinning in place. (The Sun is kept at its normal size — at true
+// scale it would be ~109× Jupiter and far off-screen.)
+let compareMode = localStorage.getItem('ssx_compare') === '1';
+const COMPARE_SUN_Y = 24;                  // how far above the row the Sun sits
+const CMP_JUP_R = 6;                       // display radius of Jupiter (largest planet)
+const CMP_LABEL_Y = CMP_JUP_R + 2.5;       // one neat line height for all planet labels
+const CMP_VIEW_POS = new THREE.Vector3(20.3, 19.2, 41); // camera spot that frames row + Sun
+const CMP_LOOK = new THREE.Vector3(0, 8, 0);           // where it looks (just above the row)
+const cmpR = key => CMP_JUP_R * REAL_KM[key] / REAL_KM.jupiter;   // true size relative to the planets
+let beltLabel = null;                      // set once the labels are built
+
+function layoutCompare() {
+  const order = [...PLANETS].sort((a, b) => REAL_KM[b.key] - REAL_KM[a.key]); // largest → smallest
+  // visible half-width of each body — Saturn counts its rings, not just the globe
+  const foot = p => p.key === 'saturn' ? 2.15 * cmpR('saturn') : cmpR(p.key);
+  // label world width at the compare-view distance (labels keep constant screen size)
+  const lsScale = clamp(CMP_VIEW_POS.distanceTo(CMP_LOOK) * 0.02, 0.29, 43);
+  const labelW = key => {
+    const ls = labelSprites.find(l => l.key === key);
+    return ls ? lsScale * ls.sp.userData.aspect : 0;
+  };
+  // centre-to-centre distance: clear the visible bodies (min gap) AND keep
+  // adjacent name labels from touching, so they form one neat line
+  const gaps = [];
+  for (let i = 0; i < order.length - 1; i++) {
+    const a = order[i], b = order[i + 1];
+    gaps.push(Math.max(foot(a) + foot(b) + 1.0,
+                       (labelW(a.key) + labelW(b.key)) / 2 + 0.4));
+  }
+  const centers = [0];
+  for (let i = 1; i < order.length; i++) centers.push(centers[i - 1] + gaps[i - 1]);
+  const mid = (centers[0] + centers[order.length - 1]) / 2;
+  for (let i = 0; i < order.length; i++)
+    bodies[order[i].key].group.position.set(centers[i] - mid, 0, 0);
+
+  // true relative sizes (relative to each other) — scale meshes & shadow uniforms
+  for (const p of PLANETS) {
+    const b = bodies[p.key];
+    const f = cmpR(p.key) / p.r;
+    b.mesh.scale.setScalar(f);
+    if (b.clouds) b.clouds.scale.setScalar(f);
+    if (p.atmo) p.atmo.scale.setScalar(f);
+    if (p.key === 'saturn' && saturnRings) {
+      saturnRings.scale.setScalar(f);
+      SATURN_RING.inner = p.r * 1.25 * f;
+      SATURN_RING.outer = p.r * 2.15 * f;
+      for (const m of [b.mesh.material, saturnRings.material])
+        m.userData.analyticUniforms.uRingRadii.value.set(SATURN_RING.inner, SATURN_RING.outer);
+    }
+  }
+  const moonCmpR = Math.max(cmpR('moon'), 0.3);
+  moonMesh.scale.setScalar(moonCmpR / MOON_R);
+
+  // Sun parked above the row as the light source
+  sunMesh.position.set(0, COMPARE_SUN_Y, 0);
+  glow.position.copy(sunMesh.position);
+  sunLight.position.copy(sunMesh.position);
+
+  // Moon: parked just above Earth (it is not one of the 8 planets)
+  const e = bodies.earth.group.position;
+  moonPos.set(e.x + 3, e.y + 4, e.z - 2);
+  moonMesh.position.copy(moonPos);
+  moonLabel.position.copy(moonPos).add(new THREE.Vector3(0, moonCmpR + 0.6, 0));
+
+  // analytic-shadow occluder radii must match the displayed sizes
+  for (const m of [bodies.earth.mesh.material, bodies.earth.clouds && bodies.earth.clouds.material])
+    if (m) m.userData.analyticUniforms.uOccR.value = moonCmpR;
+  moonMesh.material.userData.analyticUniforms.uOccR.value = cmpR('earth');
+  if (saturnRings) saturnRings.material.userData.analyticUniforms.uOccR.value = cmpR('saturn');
+
+  // Name labels: one neat horizontal line above the row — same height for all,
+  // and the spacing above guarantees adjacent labels never touch or overlap
+  for (const ls of labelSprites) {
+    if (ls.key === 'belt' || ls.key === 'moon') continue;   // handled above / fixed point
+    if (ls.key === 'sun') { ls.sp.position.set(0, COMPARE_SUN_Y + SUN_R + 3.5, 0); continue; }
+    ls.sp.position.y = CMP_LABEL_Y;
+  }
+}
+
+function setCompareMode(on) {
+  compareMode = on;
+  for (const p of PLANETS) if (p.orbitLine) p.orbitLine.visible = !on;
+  belt.visible = !on;
+  beltDust.visible = !on;
+  moonOrbitGroup.visible = !on;
+  if (beltLabel) beltLabel.visible = !on && $('labelsBtn').classList.contains('active');
+  setAnalyticShadows(!on);         // off in Compare mode (Sun is not at the origin there)
+  if (on) {
+    layoutCompare();
+  } else {
+    applyRealScale(realScale);     // restore sizes + shadow uniforms for the user's size mode
+    updatePositions();             // send everything back to its orbit
+    sunMesh.position.set(0, 0, 0);
+    glow.position.set(0, 0, 0);
+    sunLight.position.set(0, 0, 0);
   }
 }
 
@@ -1275,6 +1398,7 @@ const moonLabel = addLabel('moon', scene, MOON_R + 0.9);
   sp.position.set((BELT_INNER + BELT_OUTER) / 2, 2.5, 0);
   scene.add(sp);
   labelSprites.push({ sp, key: 'belt' });
+  beltLabel = sp;   // kept so Compare mode can hide it with the belt
 }
 
 // --- eclipse shadow cones (educational overlay) ------------------------
@@ -1307,27 +1431,34 @@ const moonPos = new THREE.Vector3();
 function updatePositions() {
   for (const p of PLANETS) {
     const b = bodies[p.key];
-    planetPos(p, simDays, b.group.position);   // elliptical orbit, tilted plane
-    b.mesh.rotation.y = (simDays / p.rotDays) * Math.PI * 2;
+    if (!compareMode) planetPos(p, simDays, b.group.position);   // elliptical orbit, tilted plane
+    b.mesh.rotation.y = (simDays / p.rotDays) * Math.PI * 2;    // spin in place (also in Compare mode)
     if (p.clouds) p.clouds.rotation.y = (simDays / p.rotDays) * Math.PI * 2 * 1.18;
   }
   earthPos.copy(bodies.earth.group.position);
 
-  const ma = (simDays / 27.32) * Math.PI * 2 + 1.0 + moonPhaseOffset;
-  moonPos.set(
-    earthPos.x + Math.cos(ma) * MOON_DIST,
-    earthPos.y + Math.sin(ma) * MOON_DIST * Math.sin(moonInc),
-    earthPos.z + Math.sin(ma) * MOON_DIST * Math.cos(moonInc)
-  );
-  moonMesh.position.copy(moonPos);
-  moonMesh.rotation.y = ma + Math.PI;   // tidally locked
+  if (!compareMode) {
+    const ma = (simDays / 27.32) * Math.PI * 2 + 1.0 + moonPhaseOffset;
+    moonPos.set(
+      earthPos.x + Math.cos(ma) * MOON_DIST,
+      earthPos.y + Math.sin(ma) * MOON_DIST * Math.sin(moonInc),
+      earthPos.z + Math.sin(ma) * MOON_DIST * Math.cos(moonInc)
+    );
+    moonMesh.position.copy(moonPos);
+    moonMesh.rotation.y = ma + Math.PI;   // tidally locked
 
-  // keep the (scene-parented) Moon label above the scaled Moon
-  const mr = realScale ? Math.max(realSceneR('moon'), 0.15) : MOON_R;
-  moonLabel.position.set(moonPos.x, moonPos.y + mr + (realScale ? 0.5 : 0.9), moonPos.z);
+    // keep the (scene-parented) Moon label above the scaled Moon
+    const mr = realScale ? Math.max(realSceneR('moon'), 0.15) : MOON_R;
+    moonLabel.position.set(moonPos.x, moonPos.y + mr + (realScale ? 0.5 : 0.9), moonPos.z);
 
-  moonOrbitGroup.position.copy(earthPos);
-  moonOrbitLine.rotation.x = -moonInc;
+    moonOrbitGroup.position.copy(earthPos);
+    moonOrbitLine.rotation.x = -moonInc;
+  } else {
+    // Compare mode: the Moon is parked just above Earth (set in layoutCompare) —
+    // keep it there and let it spin with the same clock as everything else.
+    moonMesh.rotation.y = (simDays / 27.32) * Math.PI * 2;
+  }
+
   const beltRot = (simDays / 1600) * Math.PI * 2;
   belt.rotation.y = beltRot;
   beltDust.rotation.y = beltRot;   // dust shares the main belt's orbit
@@ -1347,7 +1478,7 @@ let flight = null;             // { from, t, dur, key }
 const HOME_POS = new THREE.Vector3(0, 70, 165);
 
 function bodyWorldPos(key) {
-  if (key === 'sun') return new THREE.Vector3(0, 0, 0);
+  if (key === 'sun') return new THREE.Vector3(0, compareMode ? COMPARE_SUN_Y : 0, 0);
   if (key === 'moon') return moonPos.clone();
   return bodies[key].group.position.clone();
 }
@@ -1356,7 +1487,10 @@ function bodyRadius(key) {
   if (key === 'sun') r = SUN_R;
   else if (key === 'moon') r = MOON_R;
   else r = bodies[key].radius;
-  if (realScale) {
+  if (compareMode) {
+    // true size relative to the other planets (the Sun keeps its normal size)
+    if (key !== 'sun') r = Math.max(cmpR(key), 0.15);
+  } else if (realScale) {
     // true-to-scale radius, floored so tiny planets stay outside the camera's
     // near plane and keep a sensible minimum approach distance
     r = Math.max(realSceneR(key), 0.15);
@@ -1526,7 +1660,18 @@ function updateHover() {
 // =====================================================================
 //  Eclipse mode
 // =====================================================================
+let eclipseBannerTimer = null;
+function flashEclipseBlocked() {
+  // Real-size mode: the Sun's angular size is ~27× too big for the compressed
+  // orbits, so the Moon can't cast an umbra — explain instead of faking it.
+  $('eclipseBanner').style.display = 'block';
+  $('eclipseBanner').textContent = t().eclipseBlocked;
+  clearTimeout(eclipseBannerTimer);
+  eclipseBannerTimer = setTimeout(() => { if (!eclipseMode) $('eclipseBanner').style.display = 'none'; }, 5000);
+}
 function startEclipse() {
+  if (compareMode) { setCompareMode(false); refreshCompareBtn(); }   // eclipse needs the real orbits
+  if (realScale) { flashEclipseBlocked(); return; }
   eclipseMode = true;
   savedDps = daysPerSecond;
   daysPerSecond = 0.1;      // slow motion: the shadow takes ~45 s to cross Earth
@@ -1624,6 +1769,7 @@ function applyLang() {
   $('texBtn').textContent = L.texPhoto;
   $('eclipseBtn').textContent = L.eclipseBtn;
   $('scaleBtn').textContent = L.scaleBtn;
+  $('compareBtn').textContent = L.compareBtn;
   $('homeBtn').title = L.homeTitle;
   $('playBtn').title = L.playPause;
   $('helpTitle').textContent = L.helpTitle;
@@ -1658,15 +1804,32 @@ $('labelsBtn').onclick = () => {
   const on = !$('labelsBtn').classList.contains('active');
   $('labelsBtn').classList.toggle('active', on);
   for (const ls of labelSprites) ls.sp.visible = on;
+  if (beltLabel && compareMode) beltLabel.visible = false;   // the belt is hidden in Compare mode
 };
 
 // --- real-size mode: true-to-scale planet radii (off by default) --------
 function refreshScaleBtn() { $('scaleBtn').classList.toggle('active', realScale); }
 $('scaleBtn').onclick = () => {
+  if (compareMode) setCompareMode(false);   // the two size views are mutually exclusive
   realScale = !realScale;
   localStorage.setItem('ssx_realscale', realScale ? '1' : '0');
   refreshScaleBtn();
+  if (eclipseMode) stopEclipse();   // the eclipse shadow only works at display scale
   applyRealScale(realScale);
+};
+
+// --- compare mode: all 8 planets side by side, true relative size --------
+function refreshCompareBtn() { $('compareBtn').classList.toggle('active', compareMode); }
+$('compareBtn').onclick = () => {
+  const on = !compareMode;
+  localStorage.setItem('ssx_compare', on ? '1' : '0');
+  if (eclipseMode) stopEclipse();   // the eclipse needs the real orbits
+  setCompareMode(on);
+  refreshCompareBtn();
+  if (on) {
+    followKey = null; hideInfo();
+    flight = { from: camera.position.clone(), t: 0, dur: 1.8, key: '__compareView' };
+  }
 };
 
 // --- places list: every clickable body, one click to fly there ---------
@@ -1731,6 +1894,7 @@ $('texBtn').onclick = async () => {
 $('homeBtn').onclick = () => {
   followKey = null; flight = null; hideInfo();
   if (eclipseMode) stopEclipse();
+  if (compareMode) { setCompareMode(false); refreshCompareBtn(); }   // back to the real solar system
   flight = { from: camera.position.clone(), t: 0, dur: 1.8, key: '__home' };
 };
 $('eclipseBtn').onclick = () => eclipseMode ? stopEclipse() : startEclipse();
@@ -1811,6 +1975,18 @@ function animate() {
       yawPitch.yaw = 0; yawPitch.pitch = Math.atan2(-HOME_POS.y, HOME_POS.length());
       camera.rotation.set(yawPitch.pitch, yawPitch.yaw, 0);
     }
+  } else if (flight && flight.key === '__compareView') {
+    flight.t += dt / flight.dur;
+    const k = clamp(flight.t, 0, 1);
+    camera.position.lerpVectors(flight.from, CMP_VIEW_POS, k * k * (3 - 2 * k));
+    camera.lookAt(CMP_LOOK);
+    if (flight.t >= 1) {
+      flight = null;
+      // hand off to free flight with no jump: keep the exact orientation lookAt produced
+      yawPitch.yaw = camera.rotation.y;
+      yawPitch.pitch = clamp(camera.rotation.x, -1.55, 1.55);
+      camera.rotation.set(yawPitch.pitch, yawPitch.yaw, 0);
+    }
   } else {
     updateCamera(dt);
   }
@@ -1864,7 +2040,8 @@ async function start() {
   refreshSpeedUI();
   refreshPlaces();
   refreshScaleBtn();
-  applyRealScale(realScale);
+  refreshCompareBtn();
+  setCompareMode(compareMode);   // restore the user's Compare-mode preference
   updatePositions();
 
   if (texMode === 'photo') {
