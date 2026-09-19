@@ -56,7 +56,7 @@ python3 -m http.server 8000
 | Mouse wheel | zoom in / out |
 | Click a planet / the Sun / the Moon | fly to it and follow it |
 | `Esc` | stop following / close window |
-| Bottom bar | pause or set time speed (0.02/0.05/0.1/0.5/1/5/20/60 days per second) |
+| Bottom bar | pause, or set the time speed on a continuous slider (0.001 … 100 days per second; releasing near the marker snaps back to the default 0.02 d/s) |
 | 🌑 Eclipse button | start a solar eclipse over Earth |
 | `?` | help / controls |
 | EN / DE button | switch language (remembered) |
@@ -90,8 +90,9 @@ python3 -m http.server 8000
   rings). No shadow maps at all — cheaper and always crisp.
 - **Asteroid belt** between Mars and Jupiter (4500 instanced rocks in two layers: 3000 main
   rocks + 1500 tiny dust fragments).
-- **Time controls**: pause, or run at 0.02 / 0.05 / 0.1 / 0.5 / 1 / 5 / 20 / 60 days
-  per second (the slow settings are great for watching the Moon's shadow cross Earth).
+- **Time controls**: pause, or run at any speed from 0.001 to 100 days per second on a
+  logarithmic slider (releasing near the marker snaps back to the default 0.02 d/s —
+  the slow speeds are great for watching the Moon's shadow cross Earth).
 - **🔬 Real size mode**: every planet at its true radius relative to the Sun —
   Mercury becomes a speck, Jupiter still dwarfs everything else.
 - **📏 Compare mode**: all 8 planets lined up side by side (largest → smallest) at
