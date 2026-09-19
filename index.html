@@ -76,6 +76,7 @@
   }
   #speedLabel { min-width: 84px; text-align: center; font-size: 14px; font-weight: 600; color: var(--accent); }
   #timebar .sep { width: 1px; height: 26px; background: var(--card-border); margin: 0 4px; }
+  #homeBtn { font-size: 16px; padding: 10px 18px; border-color: rgba(255, 210, 74, 0.5); }
   #eclipseBtn { font-size: 16px; padding: 10px 18px; border-color: rgba(255, 210, 74, 0.5); }
   #eclipseBtn.active { background: var(--accent); color: #1a1400; }
 
@@ -1600,6 +1601,7 @@ function bodyRadius(key) {
 function startFlightTo(key) {
   flight = { from: camera.position.clone(), t: 0, dur: 1.6, key };
   followKey = null;
+  spinTheta = 0; spinPhi = 0;   // no leftover orbit inertia for the next body
   showInfo(key);
 }
 
@@ -2009,8 +2011,9 @@ function closeHelp() { $('helpModal').style.display = 'none'; }
 $('helpBtn').onclick = openHelp;
 $('helpClose').onclick = closeHelp;
 $('helpModal').addEventListener('click', e => { if (e.target === $('helpModal')) closeHelp(); });
-// ✕ on the info card: same as Esc / tapping empty space — stop following + hide the card
-$('infoClose').onclick = () => { followKey = null; flight = null; hideInfo(); };
+// ✕ on the info card: just hides the card — following continues.
+// To stop following: tap empty space, fly to another place, or press ⌂ Home.
+$('infoClose').onclick = () => { hideInfo(); };
 $('langBtn').onclick = () => { lang = lang === 'en' ? 'de' : 'en'; localStorage.setItem('ssx_lang', lang); applyLang(); };
 $('labelsBtn').onclick = () => {
   const on = !$('labelsBtn').classList.contains('active');
@@ -2106,6 +2109,7 @@ $('texBtn').onclick = async () => {
 };
 $('homeBtn').onclick = () => {
   followKey = null; flight = null; hideInfo();
+  spinTheta = 0; spinPhi = 0;
   if (eclipseMode) stopEclipse();
   if (compareMode) { setCompareMode(false); refreshCompareBtn(); }   // back to the real solar system
   flight = { from: camera.position.clone(), t: 0, dur: 1.8, key: '__home' };
