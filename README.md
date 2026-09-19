@@ -1,4 +1,4 @@
-# Solar System Explorer / Sonnensystem-Entdecker
+# Solar System Explorer
 
 A 3D, browser-based solar system for kids: fly through space with WASD + mouse,
 tap or click any planet to travel to it, and watch a real solar eclipse play out
@@ -10,7 +10,9 @@ By default everything (textures included) is generated **procedurally in the bro
 mode that swaps in real planet photographs (loaded from the internet); if a photo can't
 be loaded, that body simply keeps its procedural texture, so you never see broken images.
 
-![Solar System Explorer — all eight planets on their real elliptical orbits, the asteroid belt and Saturn's rings](demo.png)
+![Solar System Explorer in 📷 photo mode — all eight planets on their real elliptical orbits, the asteroid belt and Saturn's rings](demo.png)
+
+![Compare mode (📏) — all eight planets lined up side by side at their true relative sizes, with the Sun above as light source](compare.png)
 
 ## Run it
 
@@ -38,31 +40,31 @@ python3 -m http.server 8000
 # then open http://localhost:8000
 ```
 
-## Controls / Steuerung
+## Controls
 
-| Key / Action | EN | DE |
-|---|---|---|
-| Mouse drag | look around | Umschauen |
-| Touch & drag (one finger) | look around | Tippen & ziehen (ein Finger): umschauen |
-| Pinch (two fingers) | zoom in / out | Mit zwei Fingern kneifen: hinein-/herauszoomen |
-| Drag with two fingers | fly in the direction you drag (map-style pan) | Mit zwei Fingern ziehen: in die Zugrichtung fliegen |
-| Tap a planet / the Sun / the Moon | fly to it and follow it | Auf einen Planeten tippen: dorthin fliegen und ihm folgen |
-| `W` `A` `S` `D` | fly forward / left / back / right | Vorwärts / links / rückwärts / rechts fliegen |
-| `Space` | fly up | Nach oben fliegen |
-| `Ctrl` | fly down | Nach unten fliegen |
-| `Shift` (hold) | fly faster | Schneller fliegen |
-| Mouse wheel | zoom in / out | Hinein- / herauszoomen |
-| Click a planet / the Sun / the Moon | fly to it and follow it | Dorthin fliegen und ihm folgen |
-| `Esc` | stop following / close window | Folgen beenden / Fenster schließen |
-| Bottom bar | pause or set time speed (0.02/0.05/0.1/0.5/1/5/20/60 days per second) | Zeit anhalten oder Geschwindigkeit wählen (0,02/0,05/0,1/0,5/1/5/20/60 Tage pro Sekunde) |
-| 🌑 Eclipse button | start a solar eclipse over Earth | Startet eine Sonnenfinsternis über der Erde! |
-| `?` | help / controls | Hilfe / Steuerung |
-| EN / DE button | switch language (remembered) | Sprache wechseln (wird gemerkt) |
-| 📷 Photos button | switch between real photos and built-in drawings (remembered) | Zwischen echten Fotos und eingebauten Zeichnungen wechseln (wird gemerkt) |
-| 🔬 Real size button | show every planet at its true size relative to the Sun — they get tiny! (remembered) | Zeigt jeden Planeten in seiner wahren Größe relativ zur Sonne — sie werden winzig! (wird gemerkt) |
-| 📏 Compare button | line up all 8 planets side by side at their true relative sizes, with the Sun above as light source (remembered) | Stellt alle 8 Planeten nebeneinander in ihrer wahren relativen Größe auf, mit der Sonne als Lichtquelle darüber (wird gemerkt) |
-| 🗺 Places button | show/hide the list of all places you can fly to (remembered) | Liste aller Orte ein-/ausblenden, zu denen du fliegen kannst (wird gemerkt) |
-| Labels button | show/hide name labels | Namen ein-/ausblenden |
+| Key / Action | What it does |
+|---|---|
+| Mouse drag | look around |
+| Touch & drag (one finger) | look around |
+| Pinch (two fingers) | zoom in / out |
+| Drag with two fingers | fly in the direction you drag (map-style pan) |
+| Tap a planet / the Sun / the Moon | fly to it and follow it |
+| `W` `A` `S` `D` | fly forward / left / back / right |
+| `Space` | fly up |
+| `Ctrl` | fly down |
+| `Shift` (hold) | fly faster |
+| Mouse wheel | zoom in / out |
+| Click a planet / the Sun / the Moon | fly to it and follow it |
+| `Esc` | stop following / close window |
+| Bottom bar | pause or set time speed (0.02/0.05/0.1/0.5/1/5/20/60 days per second) |
+| 🌑 Eclipse button | start a solar eclipse over Earth |
+| `?` | help / controls |
+| EN / DE button | switch language (remembered) |
+| 📷 Photos button | switch between real photos and built-in drawings (remembered) |
+| 🔬 Real size button | show every planet at its true size relative to the Sun — they get tiny! (remembered) |
+| 📏 Compare button | line up all 8 planets side by side at their true relative sizes, with the Sun above as light source (remembered) |
+| 🗺 Places button | show/hide the list of all places you can fly to (remembered) |
+| Labels button | show/hide name labels |
 
 ## Features
 
