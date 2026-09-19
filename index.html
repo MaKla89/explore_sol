@@ -331,7 +331,7 @@ const I18N = {
     eclipseBanner: 'Solar eclipse! Watch the Moon\u2019s shadow cross Earth. The dark spot is the umbra — there, day turns into night for a few minutes.',
     eclipseBlocked: 'Eclipses need true-to-scale distances — turn off 🔬 Real size first (the orbits here are compressed, so the tiny Moon can\u2019t cast a real shadow).',
     infoHint: 'Press Esc or click empty space to stop following. Drag to look around, WASD to move.',
-    infoHintTouch: 'Tap empty space to stop following. Drag to look around, pinch to zoom, two-finger drag to fly.',
+    infoHintTouch: 'Tap empty space to stop following. Drag to look around, swipe to orbit, pinch to zoom, two-finger drag to fly.',
     closeInfo: 'Close',
     labelsShort: 'Aa',
     texShort: '📷',
@@ -362,6 +362,7 @@ const I18N = {
       ['Pinch (two fingers)', 'Zoom in / out'],
       ['Drag with two fingers', 'Fly in the direction you drag'],
       ['Tap a planet', 'Fly to it and follow it'],
+      ['Swipe (one finger)', 'While following: swing the camera around the planet'],
       ['Tap empty space', 'Stop following'],
       ['Bottom bar', 'Pause time or make it go faster'],
       ['🗺 Places', 'List of every place you can fly to — tap one to travel there'],
@@ -436,7 +437,7 @@ const I18N = {
     eclipseBanner: 'Sonnenfinsternis! Schau, wie der Schatten des Mondes über die Erde wandert. Der dunkle Punkt ist die Kernschattenzone (Umbra) — dort wird aus Tag für ein paar Minuten Nacht.',
     eclipseBlocked: 'Finsternisse brauchen echte Entfernungen — schalte zuerst 🔬 Echte Größe aus (die Bahnen hier sind gestaucht, daher kann der winzige Mond keinen echten Schatten werfen).',
     infoHint: 'Drücke Esc oder klicke in den leeren Raum, um das Folgen zu beenden. Ziehen zum Umschauen, WASD zum Fliegen.',
-    infoHintTouch: 'Tippe in den leeren Raum, um das Folgen zu beenden. Ziehen zum Umschauen, Kneifen zum Zoomen, zwei Finger ziehen zum Fliegen.',
+    infoHintTouch: 'Tippe in den leeren Raum, um das Folgen zu beenden. Ziehen zum Umschauen, Wischen zum Umrunden, Kneifen zum Zoomen, zwei Finger ziehen zum Fliegen.',
     closeInfo: 'Schließen',
     labelsShort: 'Aa',
     texShort: '📷',
@@ -467,6 +468,7 @@ const I18N = {
       ['Mit zwei Fingern kneifen', 'Hinein- / herauszoomen'],
       ['Mit zwei Fingern ziehen', 'In die Richtung fliegen, in die du ziehst'],
       ['Auf einen Planeten tippen', 'Dorthin fliegen und ihm folgen'],
+      ['Wischen (ein Finger)', 'Beim Folgen: Kamera kreist um den Planeten'],
       ['Auf leeren Raum tippen', 'Folgen beenden'],
       ['Leiste unten', 'Zeit anhalten oder schneller machen'],
       ['🗺 Orte', 'Liste aller Orte, zu denen du fliegen kannst — antippen zum Hinfliegen'],
@@ -1685,6 +1687,9 @@ addEventListener('blur', () => input.keys.clear());
 const raycaster = new THREE.Raycaster();
 const mouseNDC = new THREE.Vector2();
 let dragging = false, dragMoved = 0, downX = 0, downY = 0, downT = 0;
+// swipe-to-orbit: a fast one-finger flick while following swings the camera
+// around the followed body (with inertia); slow drags still just look around
+let spinTheta = 0, spinPhi = 0;   // angular velocity in rad/s
 
 // --- pointer input: mouse + touch in one set of handlers -----------------
 // One finger / left button: look around.  Tap / click: fly to a planet.
@@ -1752,6 +1757,7 @@ renderer.domElement.addEventListener('pointerdown', e => {
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pointers.size === 1) {
     dragging = true; dragMoved = 0; downX = e.clientX; downY = e.clientY; downT = performance.now();
+    spinTheta = 0; spinPhi = 0;     // grabbing the view takes over from any running orbit
     setNDC(e.clientX, e.clientY);   // refresh NDC so a tap raycasts from the actual press point
   } else if (pointers.size === 2) {
     // second finger landed: switch to pinch/pan mode and cancel any pending tap
@@ -1794,13 +1800,23 @@ function endPointer(e) {
   if (pointers.size === 0) {
     const tapLimit = e.pointerType === 'mouse' ? 6 : 12;
     const wasClick = dragging && dragMoved < tapLimit && performance.now() - downT < 450;
+    if (!wasClick && e.pointerType !== 'mouse' && followKey && !flight) {
+      // fast one-finger flick: launch the orbit spin (follow mode only)
+      const dtMs = Math.max(performance.now() - downT, 1);
+      const vx = (e.clientX - downX) / dtMs * 1000;   // px/s
+      const vy = (e.clientY - downY) / dtMs * 1000;
+      if (Math.hypot(vx, vy) > 900) {
+        spinTheta = clamp(-vx * 0.004, -7, 7);
+        spinPhi   = clamp(-vy * 0.0025, -3.5, 3.5);
+      }
+    }
     dragging = false;
     if (wasClick) {
       setNDC(e.clientX, e.clientY);
       raycaster.setFromCamera(mouseNDC, camera);
       const hits = raycaster.intersectObjects(pickables, false);
       if (hits.length) startFlightTo(hits[0].object.userData.bodyKey);
-      else if (followKey) { followKey = null; hideInfo(); }
+      else if (followKey) { followKey = null; flight = null; spinTheta = 0; spinPhi = 0; hideInfo(); }
     }
   }
 }
@@ -2183,6 +2199,22 @@ function animate() {
     }
   } else {
     updateCamera(dt);
+  }
+
+  // swipe-to-orbit: decay the flick's angular velocity around the followed body
+  if (followKey && !flight && (spinTheta !== 0 || spinPhi !== 0)) {
+    const damp = Math.exp(-dt * 1.4);   // ~0.5 s half-life, settles in ~2 s
+    const target = bodyWorldPos(followKey);
+    const off = camera.position.clone().sub(target);
+    const sph = new THREE.Spherical().setFromVector3(off);
+    sph.theta += spinTheta * dt;
+    sph.phi = clamp(sph.phi + spinPhi * dt, 0.12, Math.PI - 0.12);
+    off.setFromSpherical(sph);
+    camera.position.copy(target).add(off);
+    followOffset.copy(off);
+    camera.lookAt(target);
+    spinTheta *= damp; spinPhi *= damp;
+    if (Math.abs(spinTheta) < 0.005 && Math.abs(spinPhi) < 0.005) { spinTheta = 0; spinPhi = 0; }
   }
 
   // labels: constant screen size
