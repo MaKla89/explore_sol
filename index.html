@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Solar System Explorer</title>
 <style>
   :root {
@@ -13,9 +13,9 @@
     --text-dim: #9fb0d8;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
-  body { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; color: var(--text); user-select: none; }
-  canvas { display: block; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; overscroll-behavior: none; }
+  body { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; color: var(--text); user-select: none; -webkit-user-select: none; }
+  canvas { display: block; touch-action: none; -webkit-touch-callout: none; }
 
   #ui { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
   #ui > * { pointer-events: auto; }
@@ -146,6 +146,40 @@
     position: fixed; inset: 0; background: #04060f; z-index: 40; display: none;
     flex-direction: column; align-items: center; justify-content: center; gap: 12px;
     text-align: center; padding: 30px; font-size: 16px; line-height: 1.5;
+  }
+
+  /* ---------- small screens (phones) ---------- */
+  @media (max-width: 700px) {
+    #topbar { flex-direction: column; align-items: stretch; top: max(8px, env(safe-area-inset-top)); left: 8px; right: 8px; gap: 6px; }
+    #titlebox { padding: 7px 12px; }
+    #titlebox h1 { font-size: 15px; }
+    #titlebox p { display: none; }
+    #topbuttons { flex-wrap: wrap; justify-content: flex-start; gap: 6px; }
+    button { font-size: 13px; padding: 9px 10px; min-height: 42px; }
+    /* emoji-only labels on phones (text set via data-short in applyLang) */
+    #topbuttons button[data-short], #timebar button[data-short] { font-size: 0; }
+    #topbuttons button[data-short]::after, #timebar button[data-short]::after { content: attr(data-short); font-size: 15px; }
+    #eclipseBanner { top: 100px; max-width: 92vw; font-size: 13.5px; padding: 8px 14px; }
+    #infocard, #placesPanel {
+      left: 8px; right: 8px; width: auto; top: auto;
+      bottom: calc(72px + env(safe-area-inset-bottom));
+    }
+    #infocard { max-height: 40vh; padding: 12px 14px; }
+    #placesPanel { max-height: 46vh; }
+    #timebar {
+      left: 8px; right: 8px; transform: none;
+      bottom: max(8px, env(safe-area-inset-bottom));
+      gap: 6px; padding: 7px 10px;
+    }
+    .speedSliderWrap { width: 105px; }
+    #speedSlider { height: 26px; background: transparent; }
+    #speedSlider::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: rgba(120, 160, 255, 0.3); }
+    #speedSlider::-webkit-slider-thumb { width: 22px; height: 22px; margin-top: -8px; }
+    #speedSlider::-moz-range-track { height: 6px; border-radius: 3px; background: rgba(120, 160, 255, 0.3); }
+    #speedSlider::-moz-range-thumb { width: 20px; height: 20px; }
+    #speedLabel { min-width: 56px; font-size: 12px; }
+    #helpCard { padding: 18px 16px; }
+    #helpCard table { font-size: 13px; }
   }
 </style>
 </head>
@@ -290,6 +324,13 @@ const I18N = {
     eclipseBanner: 'Solar eclipse! Watch the Moon\u2019s shadow cross Earth. The dark spot is the umbra — there, day turns into night for a few minutes.',
     eclipseBlocked: 'Eclipses need true-to-scale distances — turn off 🔬 Real size first (the orbits here are compressed, so the tiny Moon can\u2019t cast a real shadow).',
     infoHint: 'Press Esc or click empty space to stop following. Drag to look around, WASD to move.',
+    infoHintTouch: 'Tap empty space to stop following. Drag to look around, pinch to zoom, two-finger drag to fly.',
+    labelsShort: 'Aa',
+    texShort: '📷',
+    scaleShort: '🔬',
+    compareShort: '📏',
+    placesShort: '🗺',
+    eclipseShort: '🌑',
     helpTitle: 'How to play',
     helpClose: 'OK',
     helpRows: [
@@ -306,7 +347,20 @@ const I18N = {
       ['📷 Photos', 'Switch between real planet photos and the built-in drawings (which work offline)'],
       ['🌑 Eclipse', 'Start a solar eclipse over Earth!'],
       ['🔬 Real size', 'Show every planet at its true size relative to the Sun — they get tiny!'],
-      ['📏 Compare', 'Line up all 8 planets side by side at their true relative sizes, with the Sun above at its true size — see just how vast it is!'],
+      ['📏 Compare', 'Line up all 8 planets side by side at their true relative sizes, with the Sun above — see how big they really are!'],
+    ],
+    helpRowsTouch: [
+      ['Touch & drag', 'Look around'],
+      ['Pinch (two fingers)', 'Zoom in / out'],
+      ['Drag with two fingers', 'Fly in the direction you drag'],
+      ['Tap a planet', 'Fly to it and follow it'],
+      ['Tap empty space', 'Stop following'],
+      ['Bottom bar', 'Pause time or make it go faster'],
+      ['🗺 Places', 'List of every place you can fly to — tap one to travel there'],
+      ['📷 Photos', 'Switch between real planet photos and the built-in drawings (which work offline)'],
+      ['🌑 Eclipse', 'Start a solar eclipse over Earth!'],
+      ['🔬 Real size', 'Show every planet at its true size relative to the Sun — they get tiny!'],
+      ['📏 Compare', 'Line up all 8 planets side by side at their true relative sizes, with the Sun above — see how big they really are!'],
     ],
     creditsTitle: 'Credits',
     credits: [
@@ -374,6 +428,13 @@ const I18N = {
     eclipseBanner: 'Sonnenfinsternis! Schau, wie der Schatten des Mondes über die Erde wandert. Der dunkle Punkt ist die Kernschattenzone (Umbra) — dort wird aus Tag für ein paar Minuten Nacht.',
     eclipseBlocked: 'Finsternisse brauchen echte Entfernungen — schalte zuerst 🔬 Echte Größe aus (die Bahnen hier sind gestaucht, daher kann der winzige Mond keinen echten Schatten werfen).',
     infoHint: 'Drücke Esc oder klicke in den leeren Raum, um das Folgen zu beenden. Ziehen zum Umschauen, WASD zum Fliegen.',
+    infoHintTouch: 'Tippe in den leeren Raum, um das Folgen zu beenden. Ziehen zum Umschauen, Kneifen zum Zoomen, zwei Finger ziehen zum Fliegen.',
+    labelsShort: 'Aa',
+    texShort: '📷',
+    scaleShort: '🔬',
+    compareShort: '📏',
+    placesShort: '🗺',
+    eclipseShort: '🌑',
     helpTitle: 'So geht\u2019s',
     helpClose: 'OK',
     helpRows: [
@@ -390,7 +451,20 @@ const I18N = {
       ['📷 Fotos', 'Wechselt zwischen echten Planetenfotos und den eingebauten Zeichnungen (die offline funktionieren)'],
       ['🌑 Finsternis', 'Startet eine Sonnenfinsternis über der Erde!'],
       ['🔬 Echte Größe', 'Zeigt jeden Planeten in seiner wahren Größe relativ zur Sonne — sie werden winzig!'],
-      ['📏 Vergleich', 'Stellt alle 8 Planeten nebeneinander in ihrer echten relativen Größe auf, mit der Sonne in ihrer wahren Größe darüber — so seht ihr, wie gewaltig sie ist!'],
+      ['📏 Vergleich', 'Stellt alle 8 Planeten nebeneinander in ihrer echten relativen Größe auf, mit der Sonne darüber — so seht ihr, wie groß sie wirklich sind!'],
+    ],
+    helpRowsTouch: [
+      ['Tippen & ziehen', 'Umschauen'],
+      ['Mit zwei Fingern kneifen', 'Hinein- / herauszoomen'],
+      ['Mit zwei Fingern ziehen', 'In die Richtung fliegen, in die du ziehst'],
+      ['Auf einen Planeten tippen', 'Dorthin fliegen und ihm folgen'],
+      ['Auf leeren Raum tippen', 'Folgen beenden'],
+      ['Leiste unten', 'Zeit anhalten oder schneller machen'],
+      ['🗺 Orte', 'Liste aller Orte, zu denen du fliegen kannst — antippen zum Hinfliegen'],
+      ['📷 Fotos', 'Wechselt zwischen echten Planetenfotos und den eingebauten Zeichnungen (die offline funktionieren)'],
+      ['🌑 Finsternis', 'Startet eine Sonnenfinsternis über der Erde!'],
+      ['🔬 Echte Größe', 'Zeigt jeden Planeten in seiner wahren Größe relativ zur Sonne — sie werden winzig!'],
+      ['📏 Vergleich', 'Stellt alle 8 Planeten nebeneinander in ihrer echten relativen Größe auf, mit der Sonne darüber — so seht ihr, wie groß sie wirklich sind!'],
     ],
     creditsTitle: 'Danksagungen',
     credits: [
@@ -822,7 +896,9 @@ const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.05, 4
 camera.position.set(0, 70, 165);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// phones get a slightly lower pixel-ratio cap to keep frame rates smooth
+const IS_SMALL = Math.min(innerWidth, innerHeight) < 700;
+renderer.setPixelRatio(Math.min(devicePixelRatio, IS_SMALL ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
 // No global shadow map: the Moon's and the rings' shadows are computed
 // analytically inside the planet shaders (see applyAnalyticShadow below) —
@@ -1215,16 +1291,15 @@ function applyRealScale(on) {
 // to reality *relative to the other planets*. The Sun is parked above the row
 // and acts as the light source, so each planet still shows a proper day/night
 // terminator. Orbits, the asteroid belt and the Moon's orbit are hidden; the
-// planets keep spinning in place. The Sun is shown at its TRUE scale too — so
-// vast that only its lower limb fits on screen, like a giant rising sun.
+// planets keep spinning in place. (The Sun is kept at its normal size — at true
+// scale it would be ~109× Jupiter and far off-screen.)
 let compareMode = localStorage.getItem('ssx_compare') === '1';
-const COMPARE_SUN_Y = 74;                  // height of the Sun's CENTRE above the row
+const COMPARE_SUN_Y = 24;                  // how far above the row the Sun sits
 const CMP_JUP_R = 6;                       // display radius of Jupiter (largest planet)
 const CMP_LABEL_Y = CMP_JUP_R + 2.5;       // one neat line height for all planet labels
 const CMP_VIEW_POS = new THREE.Vector3(20.3, 19.2, 41); // camera spot that frames row + Sun
 const CMP_LOOK = new THREE.Vector3(0, 8, 0);           // where it looks (just above the row)
 const cmpR = key => CMP_JUP_R * REAL_KM[key] / REAL_KM.jupiter;   // true size relative to the planets
-const CMP_SUN_R = CMP_JUP_R * REAL_KM.sun / REAL_KM.jupiter;      // Sun at TRUE scale (~10× Jupiter)
 let beltLabel = null;                      // set once the labels are built
 
 function layoutCompare() {
@@ -1269,11 +1344,7 @@ function layoutCompare() {
   const moonCmpR = Math.max(cmpR('moon'), 0.3);
   moonMesh.scale.setScalar(moonCmpR / MOON_R);
 
-  // Sun parked above the row as the light source — at TRUE scale relative to the
-  // planets (~10× Jupiter), so kids see just how vast it is. Only its lower limb
-  // fits on screen, like a giant rising sun.
-  sunMesh.scale.setScalar(CMP_SUN_R / SUN_R);
-  glow.scale.setScalar(CMP_SUN_R * 3);     // corona hugging the limb (5.2× would wash out the row)
+  // Sun parked above the row as the light source
   sunMesh.position.set(0, COMPARE_SUN_Y, 0);
   glow.position.copy(sunMesh.position);
   sunLight.position.copy(sunMesh.position);
@@ -1294,7 +1365,7 @@ function layoutCompare() {
   // and the spacing above guarantees adjacent labels never touch or overlap
   for (const ls of labelSprites) {
     if (ls.key === 'belt' || ls.key === 'moon') continue;   // handled above / fixed point
-    if (ls.key === 'sun') { ls.sp.position.set(0, COMPARE_SUN_Y - CMP_SUN_R + 4, 0); continue; }
+    if (ls.key === 'sun') { ls.sp.position.set(0, COMPARE_SUN_Y + SUN_R + 3.5, 0); continue; }
     ls.sp.position.y = CMP_LABEL_Y;
   }
 }
@@ -1312,8 +1383,6 @@ function setCompareMode(on) {
   } else {
     applyRealScale(realScale);     // restore sizes + shadow uniforms for the user's size mode
     updatePositions();             // send everything back to its orbit
-    sunMesh.scale.setScalar(1);
-    glow.scale.setScalar(SUN_R * 5.2);
     sunMesh.position.set(0, 0, 0);
     glow.position.set(0, 0, 0);
     sunLight.position.set(0, 0, 0);
@@ -1495,8 +1564,8 @@ function bodyRadius(key) {
   else if (key === 'moon') r = MOON_R;
   else r = bodies[key].radius;
   if (compareMode) {
-    // true size relative to the other planets — and the Sun at its TRUE scale too
-    r = key === 'sun' ? CMP_SUN_R : Math.max(cmpR(key), 0.15);
+    // true size relative to the other planets (the Sun keeps its normal size)
+    if (key !== 'sun') r = Math.max(cmpR(key), 0.15);
   } else if (realScale) {
     // true-to-scale radius, floored so tiny planets stay outside the camera's
     // near plane and keep a sensible minimum approach distance
@@ -1595,18 +1664,17 @@ const raycaster = new THREE.Raycaster();
 const mouseNDC = new THREE.Vector2();
 let dragging = false, dragMoved = 0, downX = 0, downY = 0, downT = 0;
 
-renderer.domElement.addEventListener('mousedown', e => {
-  if (e.button !== 0) return;
-  dragging = true; dragMoved = 0; downX = e.clientX; downY = e.clientY; downT = performance.now();
-  // refresh NDC here so a click raycasts from the actual press point even if
-  // no mousemove fired first (e.g. the very first click, or a teleport)
-  mouseNDC.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
-});
-addEventListener('mousemove', e => {
-  mouseNDC.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
-  if (!dragging) return;
-  const dx = e.movementX, dy = e.movementY;
-  dragMoved += Math.abs(dx) + Math.abs(dy);
+// --- pointer input: mouse + touch in one set of handlers -----------------
+// One finger / left button: look around.  Tap / click: fly to a planet.
+// Pinch (two fingers): zoom.  Two-finger drag: fly (map-style pan).
+const isTouch = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+const pointers = new Map();   // pointerId -> {x, y}
+let pinchDist0 = 0, pinchMid0 = null;
+
+function setNDC(x, y) { mouseNDC.set((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1); }
+
+// look around (mouse drag & one-finger touch drag)
+function applyLook(dx, dy) {
   if (followKey) {
     // rotate the offset around the followed body
     const target = bodyWorldPos(followKey);
@@ -1623,20 +1691,101 @@ addEventListener('mousemove', e => {
     yawPitch.pitch = clamp(yawPitch.pitch - dy * 0.0032, -1.55, 1.55);
     camera.rotation.set(yawPitch.pitch, yawPitch.yaw, 0);
   }
-});
-addEventListener('mouseup', e => {
-  if (e.button !== 0 || !dragging) return;
-  dragging = false;
-  const wasClick = dragMoved < 6 && performance.now() - downT < 450;
-  if (!wasClick) return;
-  mouseNDC.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
-  raycaster.setFromCamera(mouseNDC, camera);
-  const hits = raycaster.intersectObjects(pickables, false);
-  if (hits.length) {
-    startFlightTo(hits[0].object.userData.bodyKey);
-  } else if (followKey) {
-    followKey = null; hideInfo();
+}
+
+// zoom (pinch): factor < 1 = closer
+function applyZoom(factor) {
+  if (followKey) {
+    followOffset.multiplyScalar(factor);
+    followOffset.clampLength(bodyRadius(followKey) * 1.25, bodyRadius(followKey) * 40 + 30);
+  } else {
+    const fwd = new THREE.Vector3();
+    camera.getWorldDirection(fwd);
+    // dolly along the view direction; scale with distance so it feels similar at any zoom level
+    camera.position.addScaledVector(fwd, -Math.log(factor) * Math.max(camera.position.length() * 0.4, 6));
   }
+}
+
+// fly (two-finger drag): map-style pan — the scene moves with your fingers
+function applyFly(dx, dy) {
+  const fwd = new THREE.Vector3();
+  camera.getWorldDirection(fwd);
+  const right = new THREE.Vector3().crossVectors(fwd, camera.up).normalize();
+  const s = Math.max(camera.position.length() * 0.5, 10) / innerHeight;
+  if (followKey) {
+    // in follow mode the camera is derived from followOffset every frame, so
+    // move the offset itself — moving camera.position would be overwritten
+    followOffset.addScaledVector(right, -dx * s);
+    followOffset.addScaledVector(fwd, dy * s);
+    followOffset.clampLength(bodyRadius(followKey) * 1.25, bodyRadius(followKey) * 40 + 30);
+  } else {
+    camera.position.addScaledVector(right, -dx * s);
+    camera.position.addScaledVector(fwd, dy * s);
+  }
+}
+
+renderer.domElement.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  renderer.domElement.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size === 1) {
+    dragging = true; dragMoved = 0; downX = e.clientX; downY = e.clientY; downT = performance.now();
+    setNDC(e.clientX, e.clientY);   // refresh NDC so a tap raycasts from the actual press point
+  } else if (pointers.size === 2) {
+    // second finger landed: switch to pinch/pan mode and cancel any pending tap
+    dragging = false; dragMoved = Infinity;
+    const [a, b] = [...pointers.values()];
+    pinchDist0 = Math.hypot(a.x - b.x, a.y - b.y);
+    pinchMid0 = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  }
+});
+
+renderer.domElement.addEventListener('pointermove', e => {
+  const p = pointers.get(e.pointerId);
+  if (!p) return;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y;
+  p.x = e.clientX; p.y = e.clientY;
+  setNDC(e.clientX, e.clientY);
+  if (pointers.size === 1) {
+    dragMoved += Math.abs(dx) + Math.abs(dy);
+    applyLook(dx, dy);
+  } else if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    const dist = Math.hypot(a.x - b.x, a.y - b.y);
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    if (pinchDist0 > 0 && dist > 0) applyZoom(pinchDist0 / dist);
+    pinchDist0 = dist;
+    applyFly(mid.x - pinchMid0.x, mid.y - pinchMid0.y);
+    pinchMid0 = mid;
+  }
+});
+
+function endPointer(e) {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.delete(e.pointerId);
+  if (pointers.size === 1) {
+    // pinch ended with one finger left: keep looking with it, but never treat as a tap
+    const [p] = [...pointers.values()];
+    dragging = true; dragMoved = Infinity; downX = p.x; downY = p.y; downT = performance.now();
+    return;
+  }
+  if (pointers.size === 0) {
+    const tapLimit = e.pointerType === 'mouse' ? 6 : 12;
+    const wasClick = dragging && dragMoved < tapLimit && performance.now() - downT < 450;
+    dragging = false;
+    if (wasClick) {
+      setNDC(e.clientX, e.clientY);
+      raycaster.setFromCamera(mouseNDC, camera);
+      const hits = raycaster.intersectObjects(pickables, false);
+      if (hits.length) startFlightTo(hits[0].object.userData.bodyKey);
+      else if (followKey) { followKey = null; hideInfo(); }
+    }
+  }
+}
+renderer.domElement.addEventListener('pointerup', endPointer);
+renderer.domElement.addEventListener('pointercancel', e => {
+  pointers.delete(e.pointerId);
+  if (pointers.size === 0) dragging = false;
 });
 
 // mouse wheel: zoom (dolly) in / out
@@ -1758,7 +1907,7 @@ function showInfo(key) {
   $('infoName').textContent = b.name;
   $('infoType').textContent = b.type;
   $('infoFacts').innerHTML = b.facts.map(f => `<p class="fact">${f}</p>`).join('');
-  $('infoHint').textContent = t().infoHint;
+  $('infoHint').textContent = isTouch ? (t().infoHintTouch || t().infoHint) : t().infoHint;
   $('infocard').style.display = 'block';
 }
 function hideInfo() { $('infocard').style.display = 'none'; }
@@ -1777,11 +1926,19 @@ function applyLang() {
   $('eclipseBtn').textContent = L.eclipseBtn;
   $('scaleBtn').textContent = L.scaleBtn;
   $('compareBtn').textContent = L.compareBtn;
+  // short (emoji-only) labels shown on small screens via CSS ::after
+  $('labelsBtn').dataset.short = L.labelsShort;
+  $('texBtn').dataset.short = L.texShort;
+  $('scaleBtn').dataset.short = L.scaleShort;
+  $('compareBtn').dataset.short = L.compareShort;
+  $('placesBtn').dataset.short = L.placesShort;
+  $('eclipseBtn').dataset.short = L.eclipseShort;
   $('homeBtn').title = L.homeTitle;
   $('playBtn').title = L.playPause;
   $('helpTitle').textContent = L.helpTitle;
   $('helpClose').textContent = L.helpClose;
-  $('helpTable').innerHTML = L.helpRows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('');
+  const rows = isTouch ? (L.helpRowsTouch || L.helpRows) : L.helpRows;
+  $('helpTable').innerHTML = rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('');
   $('creditsTitle').textContent = L.creditsTitle;
   $('creditsList').innerHTML = L.credits.map(c => `<p>${c}</p>`).join('');
   $('langBtn').textContent = lang === 'en' ? 'DE' : 'EN';
@@ -1854,7 +2011,8 @@ function buildPlaces() {
   }
   lastFollowShown = null;   // force the follow-highlight to re-apply next frame
 }
-let placesVisible = localStorage.getItem('ssx_places') !== '0';   // shown by default
+// shown by default on desktop, hidden by default on phones (it covers a lot of screen)
+let placesVisible = IS_SMALL ? localStorage.getItem('ssx_places') === '1' : localStorage.getItem('ssx_places') !== '0';
 function refreshPlaces() {
   $('placesBtn').classList.toggle('active', placesVisible);
   $('placesPanel').style.display = placesVisible ? 'block' : 'none';
@@ -2049,14 +2207,6 @@ async function start() {
   refreshScaleBtn();
   refreshCompareBtn();
   setCompareMode(compareMode);   // restore the user's Compare-mode preference
-  if (compareMode) {
-    // …and put the camera at the Compare view spot (no flight on load)
-    camera.position.copy(CMP_VIEW_POS);
-    camera.lookAt(CMP_LOOK);
-    yawPitch.yaw = camera.rotation.y;
-    yawPitch.pitch = clamp(camera.rotation.x, -1.55, 1.55);
-    camera.rotation.set(yawPitch.pitch, yawPitch.yaw, 0);
-  }
   updatePositions();
 
   if (texMode === 'photo') {
