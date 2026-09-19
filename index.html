@@ -170,7 +170,7 @@
       left: 8px; right: 8px; width: auto; top: auto;
       bottom: calc(72px + env(safe-area-inset-bottom));
     }
-    #infocard { max-height: 40vh; padding: 12px 14px; }
+    #infocard { max-height: 32vh; padding: 12px 14px; }
     #placesPanel { max-height: 46vh; }
     #timebar {
       left: 8px; right: 8px; transform: none;
@@ -1687,8 +1687,9 @@ addEventListener('blur', () => input.keys.clear());
 const raycaster = new THREE.Raycaster();
 const mouseNDC = new THREE.Vector2();
 let dragging = false, dragMoved = 0, downX = 0, downY = 0, downT = 0;
-// swipe-to-orbit: a fast one-finger flick while following swings the camera
-// around the followed body (with inertia); slow drags still just look around
+// swipe-to-orbit: a one-finger swipe while following swings the camera around
+// the followed body and keeps orbiting with inertia after release; only very
+// slow drags (deliberate positioning) don't launch a spin
 let spinTheta = 0, spinPhi = 0;   // angular velocity in rad/s
 
 // --- pointer input: mouse + touch in one set of handlers -----------------
@@ -1801,13 +1802,15 @@ function endPointer(e) {
     const tapLimit = e.pointerType === 'mouse' ? 6 : 12;
     const wasClick = dragging && dragMoved < tapLimit && performance.now() - downT < 450;
     if (!wasClick && e.pointerType !== 'mouse' && followKey && !flight) {
-      // fast one-finger flick: launch the orbit spin (follow mode only)
+      // one-finger swipe while following: launch the orbit spin (follow mode
+      // only). A normal swipe gives a gentle orbit with inertia; a fast flick
+      // spins faster. Very slow drags stay put so you can position precisely.
       const dtMs = Math.max(performance.now() - downT, 1);
       const vx = (e.clientX - downX) / dtMs * 1000;   // px/s
       const vy = (e.clientY - downY) / dtMs * 1000;
-      if (Math.hypot(vx, vy) > 900) {
-        spinTheta = clamp(-vx * 0.004, -7, 7);
-        spinPhi   = clamp(-vy * 0.0025, -3.5, 3.5);
+      if (Math.hypot(vx, vy) > 350) {
+        spinTheta = clamp(-vx * 0.002, -6, 6);
+        spinPhi   = clamp(-vy * 0.0012, -3, 3);
       }
     }
     dragging = false;
