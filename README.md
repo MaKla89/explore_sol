@@ -59,9 +59,9 @@ python3 -m http.server 8000
 | `?` | help / controls | Hilfe / Steuerung |
 | EN / DE button | switch language (remembered) | Sprache wechseln (wird gemerkt) |
 | 📷 Photos button | switch between real photos and built-in drawings (remembered) | Zwischen echten Fotos und eingebauten Zeichnungen wechseln (wird gemerkt) |
-| � Real size button | show every planet at its true size relative to the Sun — they get tiny! (remembered) | Zeigt jeden Planeten in seiner wahren Größe relativ zur Sonne — sie werden winzig! (wird gemerkt) |
+| 🔬 Real size button | show every planet at its true size relative to the Sun — they get tiny! (remembered) | Zeigt jeden Planeten in seiner wahren Größe relativ zur Sonne — sie werden winzig! (wird gemerkt) |
 | 📏 Compare button | line up all 8 planets side by side at their true relative sizes, with the Sun above as light source (remembered) | Stellt alle 8 Planeten nebeneinander in ihrer wahren relativen Größe auf, mit der Sonne als Lichtquelle darüber (wird gemerkt) |
-| �🗺 Places button | show/hide the list of all places you can fly to (remembered) | Liste aller Orte ein-/ausblenden, zu denen du fliegen kannst (wird gemerkt) |
+| 🗺 Places button | show/hide the list of all places you can fly to (remembered) | Liste aller Orte ein-/ausblenden, zu denen du fliegen kannst (wird gemerkt) |
 | Labels button | show/hide name labels | Namen ein-/ausblenden |
 
 ## Features
@@ -139,7 +139,7 @@ and the Moon's usual tilted orbit.
   every frame, so planets also speed up near perihelion and slow down at
   aphelion, as they really do. At t=0 the planets sit where they actually were
   on Jan 1, 2000.
-- The whole app is a single self-contained `index.html` (~1700 lines).
+- The whole app is a single self-contained `index.html` (~2200 lines).
 
 ## License
 

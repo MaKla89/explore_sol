@@ -1175,19 +1175,24 @@ function applyAnalyticShadow(mat, opts) {
   mat.userData.analyticUniforms = uniforms;   // kept for the per-frame updates
   mat.onBeforeCompile = shader => {
     Object.assign(shader.uniforms, uniforms);
-    // world-space position (the built-in worldPosition varying is only emitted
-    // when envmap/shadowmap features are on — we need it unconditionally)
+    // world-space position AND normal (the built-in worldPosition varying is
+    // only emitted when envmap/shadowmap features are on — we need them
+    // unconditionally). The fragment's `geometryNormal` is VIEW space, so it
+    // must not be mixed with world-space positions — hence vAsWorldNormal.
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vAsWorldPos;')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vAsWorldPos;\nvarying vec3 vAsWorldNormal;')
+      // objectNormal is in scope from beginnormal_vertex (before defaultnormal_vertex);
+      // transformed only exists after begin_vertex, so the position is set later.
+      .replace('#include <defaultnormal_vertex>', '#include <defaultnormal_vertex>\n\tvAsWorldNormal = normalize( mat3( modelMatrix ) * objectNormal );')
       .replace('#include <project_vertex>', '#include <project_vertex>\n\tvAsWorldPos = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vAsWorldPos;\nuniform float uShadowOn;\n' + analyticShadowGLSL(opts))
+      .replace('#include <common>', '#include <common>\nvarying vec3 vAsWorldPos;\nvarying vec3 vAsWorldNormal;\nuniform float uShadowOn;\n' + analyticShadowGLSL(opts))
       // onBeforeCompile runs BEFORE the #include chunks are expanded, so we must
       // anchor on a literal include token. Right after lights_fragment_begin all
       // direct (sun) light is accumulated in reflectedLight — multiply it there;
       // ambient stays, so the night side is unchanged.
       .replace('#include <lights_fragment_begin>',
-               '#include <lights_fragment_begin>\n\tif ( uShadowOn > 0.5 ) { float asf = analyticShadowFactor( vAsWorldPos, geometryNormal ); reflectedLight.directDiffuse *= asf; reflectedLight.directSpecular *= asf; }');
+               '#include <lights_fragment_begin>\n\tif ( uShadowOn > 0.5 ) { float asf = analyticShadowFactor( vAsWorldPos, vAsWorldNormal ); reflectedLight.directDiffuse *= asf; reflectedLight.directSpecular *= asf; }');
   };
   mat.customProgramCacheKey = () => (opts.moon ? 'am' : '') + (opts.ring ? 'ar' : '');
 }
@@ -1662,6 +1667,7 @@ addEventListener('keydown', e => {
   if (k === 'escape') {
     if ($('helpModal').style.display === 'flex') closeHelp();
     else if (followKey || flight) { followKey = null; flight = null; hideInfo(); }
+    else if (eclipseMode) stopEclipse();   // documented exit: Esc returns to normal time
   }
 });
 addEventListener('keyup', e => input.keys.delete(e.key.toLowerCase() === 'control' ? 'control' : e.key.toLowerCase()));
