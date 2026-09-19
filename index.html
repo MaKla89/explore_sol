@@ -88,6 +88,12 @@
   #infocard .type { font-size: 13px; color: var(--text-dim); margin-bottom: 10px; }
   #infocard p.fact { font-size: 14.5px; line-height: 1.5; margin-bottom: 8px; }
   #infocard .hint { font-size: 12px; color: var(--text-dim); border-top: 1px solid var(--card-border); padding-top: 8px; margin-top: 6px; }
+  #infoClose {
+    position: absolute; top: 8px; right: 8px; width: 28px; height: 28px;
+    padding: 0; border-radius: 50%; font-size: 14px; line-height: 1;
+    background: rgba(30, 42, 80, 0.7); color: var(--text-dim);
+  }
+  #infoClose:hover { background: rgba(52, 70, 130, 0.95); color: var(--text); }
 
   /* ---------- places panel ---------- */
   #placesPanel {
@@ -215,6 +221,7 @@
   <div id="eclipseBanner" class="card"></div>
 
   <div id="infocard" class="card">
+    <button id="infoClose" title="Close">✕</button>
     <h2 id="infoName"></h2>
     <div class="type" id="infoType"></div>
     <div id="infoFacts"></div>
@@ -325,6 +332,7 @@ const I18N = {
     eclipseBlocked: 'Eclipses need true-to-scale distances — turn off 🔬 Real size first (the orbits here are compressed, so the tiny Moon can\u2019t cast a real shadow).',
     infoHint: 'Press Esc or click empty space to stop following. Drag to look around, WASD to move.',
     infoHintTouch: 'Tap empty space to stop following. Drag to look around, pinch to zoom, two-finger drag to fly.',
+    closeInfo: 'Close',
     labelsShort: 'Aa',
     texShort: '📷',
     scaleShort: '🔬',
@@ -429,6 +437,7 @@ const I18N = {
     eclipseBlocked: 'Finsternisse brauchen echte Entfernungen — schalte zuerst 🔬 Echte Größe aus (die Bahnen hier sind gestaucht, daher kann der winzige Mond keinen echten Schatten werfen).',
     infoHint: 'Drücke Esc oder klicke in den leeren Raum, um das Folgen zu beenden. Ziehen zum Umschauen, WASD zum Fliegen.',
     infoHintTouch: 'Tippe in den leeren Raum, um das Folgen zu beenden. Ziehen zum Umschauen, Kneifen zum Zoomen, zwei Finger ziehen zum Fliegen.',
+    closeInfo: 'Schließen',
     labelsShort: 'Aa',
     texShort: '📷',
     scaleShort: '🔬',
@@ -1921,6 +1930,9 @@ function showInfo(key) {
   $('infoType').textContent = b.type;
   $('infoFacts').innerHTML = b.facts.map(f => `<p class="fact">${f}</p>`).join('');
   $('infoHint').textContent = isTouch ? (t().infoHintTouch || t().infoHint) : t().infoHint;
+  // On phones the places panel and info card are both pinned to the bottom and
+  // would overlap — hide the list so the card (and its ✕) stays reachable.
+  if (IS_SMALL && placesVisible) { placesVisible = false; refreshPlaces(); }
   $('infocard').style.display = 'block';
 }
 function hideInfo() { $('infocard').style.display = 'none'; }
@@ -1950,6 +1962,8 @@ function applyLang() {
   $('playBtn').title = L.playPause;
   $('helpTitle').textContent = L.helpTitle;
   $('helpClose').textContent = L.helpClose;
+  $('infoClose').title = L.closeInfo;
+  $('infoClose').setAttribute('aria-label', L.closeInfo);
   const rows = isTouch ? (L.helpRowsTouch || L.helpRows) : L.helpRows;
   $('helpTable').innerHTML = rows.map(r => `<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('');
   $('creditsTitle').textContent = L.creditsTitle;
@@ -1976,6 +1990,8 @@ function closeHelp() { $('helpModal').style.display = 'none'; }
 $('helpBtn').onclick = openHelp;
 $('helpClose').onclick = closeHelp;
 $('helpModal').addEventListener('click', e => { if (e.target === $('helpModal')) closeHelp(); });
+// ✕ on the info card: same as Esc / tapping empty space — stop following + hide the card
+$('infoClose').onclick = () => { followKey = null; flight = null; hideInfo(); };
 $('langBtn').onclick = () => { lang = lang === 'en' ? 'de' : 'en'; localStorage.setItem('ssx_lang', lang); applyLang(); };
 $('labelsBtn').onclick = () => {
   const on = !$('labelsBtn').classList.contains('active');
