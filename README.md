@@ -93,7 +93,8 @@ python3 -m http.server 8000
 - **🔬 Real size mode**: every planet at its true radius relative to the Sun —
   Mercury becomes a speck, Jupiter still dwarfs everything else.
 - **📏 Compare mode**: all 8 planets lined up side by side (largest → smallest) at
-  their true *relative* sizes, with the Sun parked above the row as the light source,
+  their true *relative* sizes, with the Sun above the row at its true scale too — so
+  vast that only its lower limb fits on screen. It acts as the light source,
   so each planet keeps a proper day/night terminator. Orbits and the asteroid belt
   are hidden; the name labels form one neat line above the row. Great for seeing how
   big the planets really are compared to each other.

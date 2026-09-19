@@ -1291,15 +1291,16 @@ function applyRealScale(on) {
 // to reality *relative to the other planets*. The Sun is parked above the row
 // and acts as the light source, so each planet still shows a proper day/night
 // terminator. Orbits, the asteroid belt and the Moon's orbit are hidden; the
-// planets keep spinning in place. (The Sun is kept at its normal size — at true
-// scale it would be ~109× Jupiter and far off-screen.)
+// planets keep spinning in place. The Sun is shown at its TRUE scale too — so
+// vast that only its lower limb fits on screen, like a giant rising sun.
 let compareMode = localStorage.getItem('ssx_compare') === '1';
-const COMPARE_SUN_Y = 24;                  // how far above the row the Sun sits
+const COMPARE_SUN_Y = 74;                  // height of the Sun's CENTRE above the row
 const CMP_JUP_R = 6;                       // display radius of Jupiter (largest planet)
 const CMP_LABEL_Y = CMP_JUP_R + 2.5;       // one neat line height for all planet labels
 const CMP_VIEW_POS = new THREE.Vector3(20.3, 19.2, 41); // camera spot that frames row + Sun
 const CMP_LOOK = new THREE.Vector3(0, 8, 0);           // where it looks (just above the row)
 const cmpR = key => CMP_JUP_R * REAL_KM[key] / REAL_KM.jupiter;   // true size relative to the planets
+const CMP_SUN_R = CMP_JUP_R * REAL_KM.sun / REAL_KM.jupiter;      // Sun at TRUE scale (~10× Jupiter)
 let beltLabel = null;                      // set once the labels are built
 
 function layoutCompare() {
@@ -1344,7 +1345,11 @@ function layoutCompare() {
   const moonCmpR = Math.max(cmpR('moon'), 0.3);
   moonMesh.scale.setScalar(moonCmpR / MOON_R);
 
-  // Sun parked above the row as the light source
+  // Sun parked above the row as the light source — at TRUE scale relative to the
+  // planets (~10× Jupiter), so kids see just how vast it is. Only its lower limb
+  // fits on screen, like a giant rising sun.
+  sunMesh.scale.setScalar(CMP_SUN_R / SUN_R);
+  glow.scale.setScalar(CMP_SUN_R * 3);     // corona hugging the limb (5.2× would wash out the row)
   sunMesh.position.set(0, COMPARE_SUN_Y, 0);
   glow.position.copy(sunMesh.position);
   sunLight.position.copy(sunMesh.position);
@@ -1365,7 +1370,7 @@ function layoutCompare() {
   // and the spacing above guarantees adjacent labels never touch or overlap
   for (const ls of labelSprites) {
     if (ls.key === 'belt' || ls.key === 'moon') continue;   // handled above / fixed point
-    if (ls.key === 'sun') { ls.sp.position.set(0, COMPARE_SUN_Y + SUN_R + 3.5, 0); continue; }
+    if (ls.key === 'sun') { ls.sp.position.set(0, COMPARE_SUN_Y - CMP_SUN_R + 4, 0); continue; }
     ls.sp.position.y = CMP_LABEL_Y;
   }
 }
@@ -1383,6 +1388,8 @@ function setCompareMode(on) {
   } else {
     applyRealScale(realScale);     // restore sizes + shadow uniforms for the user's size mode
     updatePositions();             // send everything back to its orbit
+    sunMesh.scale.setScalar(1);
+    glow.scale.setScalar(SUN_R * 5.2);
     sunMesh.position.set(0, 0, 0);
     glow.position.set(0, 0, 0);
     sunLight.position.set(0, 0, 0);
@@ -1564,8 +1571,8 @@ function bodyRadius(key) {
   else if (key === 'moon') r = MOON_R;
   else r = bodies[key].radius;
   if (compareMode) {
-    // true size relative to the other planets (the Sun keeps its normal size)
-    if (key !== 'sun') r = Math.max(cmpR(key), 0.15);
+    // true size relative to the other planets — and the Sun at its TRUE scale too
+    r = key === 'sun' ? CMP_SUN_R : Math.max(cmpR(key), 0.15);
   } else if (realScale) {
     // true-to-scale radius, floored so tiny planets stay outside the camera's
     // near plane and keep a sensible minimum approach distance
@@ -2207,6 +2214,14 @@ async function start() {
   refreshScaleBtn();
   refreshCompareBtn();
   setCompareMode(compareMode);   // restore the user's Compare-mode preference
+  if (compareMode) {
+    // …and put the camera at the Compare view spot (no flight on load)
+    camera.position.copy(CMP_VIEW_POS);
+    camera.lookAt(CMP_LOOK);
+    yawPitch.yaw = camera.rotation.y;
+    yawPitch.pitch = clamp(camera.rotation.x, -1.55, 1.55);
+    camera.rotation.set(yawPitch.pitch, yawPitch.yaw, 0);
+  }
   updatePositions();
 
   if (texMode === 'photo') {
