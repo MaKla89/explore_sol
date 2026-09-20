@@ -10,6 +10,9 @@ By default everything (textures included) is generated **procedurally in the bro
 mode that swaps in real planet photographs (loaded from the internet); if a photo can't
 be loaded, that body simply keeps its procedural texture, so you never see broken images.
 
+> **🚀 Just want to play around?** Try the live demo — no download needed:
+> <https://solar-explorer-demo.netlify.app/>
+
 ![Solar System Explorer in 📷 photo mode — all eight planets on their real elliptical orbits, the asteroid belt and Saturn's rings](demo.png)
 
 ![Compare mode (📏) — all eight planets lined up side by side at their true relative sizes, with the Sun above as light source](compare.png)
