@@ -400,7 +400,7 @@ const I18N = {
     creditsTitle: 'Credits',
     credits: [
       '<b>📷 Photo mode</b>',
-      'All planet photos: <a href="https://github.com/hyqzz/Solar-Wanderer" target="_blank" rel="noopener">Solar-Wanderer</a>, based on <a href="https://solarsystemscope.com/textures/" target="_blank" rel="noopener">solarsystemscope.com</a> (NASA / USGS / SDO data) — <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.',
+      'All photos (planets & Milky Way background): <a href="https://github.com/hyqzz/Solar-Wanderer" target="_blank" rel="noopener">Solar-Wanderer</a>, based on <a href="https://solarsystemscope.com/textures/" target="_blank" rel="noopener">solarsystemscope.com</a> (NASA / USGS / SDO data) — <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.',
       '<b>3D engine</b>',
       '<a href="https://threejs.org" target="_blank" rel="noopener">Three.js</a> — MIT license.',
     ],
@@ -506,7 +506,7 @@ const I18N = {
     creditsTitle: 'Danksagungen',
     credits: [
       '<b>📷 Foto-Modus</b>',
-      'Alle Planetenfotos: <a href="https://github.com/hyqzz/Solar-Wanderer" target="_blank" rel="noopener">Solar-Wanderer</a>, basierend auf <a href="https://solarsystemscope.com/textures/" target="_blank" rel="noopener">solarsystemscope.com</a> (NASA / USGS / SDO-Daten) — <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.',
+      'Alle Fotos (Planeten & Milchstraßen-Hintergrund): <a href="https://github.com/hyqzz/Solar-Wanderer" target="_blank" rel="noopener">Solar-Wanderer</a>, basierend auf <a href="https://solarsystemscope.com/textures/" target="_blank" rel="noopener">solarsystemscope.com</a> (NASA / USGS / SDO-Daten) — <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.',
       '<b>3D-Engine</b>',
       '<a href="https://threejs.org" target="_blank" rel="noopener">Three.js</a> — MIT-Lizenz.',
     ],
@@ -979,6 +979,50 @@ function makeStars(count, rMin, rMax, size) {
 }
 scene.add(makeStars(2500, 700, 1600, 1.6));
 scene.add(makeStars(800, 400, 700, 2.2));
+
+// --- Milky Way background (optional photo) --------------------------------
+// The same CC-BY-4.0 source as the planet photos also has an equirectangular
+// star panorama. Loaded in the background — never blocks startup; if it fails
+// (offline etc.) the procedural starfield simply stays on its own.
+let milkySky = null;
+function raDecToScene(raDeg, decDeg) {
+  // equatorial (RA/Dec) → ecliptic (obliquity ε = 23.439°), then the same
+  // mapping the orbits use: ecliptic X→x, Y→z, Z→y (+y = north of ecliptic).
+  const ra = raDeg * D2R, dec = decDeg * D2R, eps = 23.4393 * D2R;
+  const xe = Math.cos(dec) * Math.cos(ra);
+  const ye = Math.cos(dec) * Math.sin(ra);
+  const ze = Math.sin(dec);
+  return new THREE.Vector3(
+    xe,
+    -ye * Math.sin(eps) + ze * Math.cos(eps),   // ecliptic Z → scene y
+    ye * Math.cos(eps) + ze * Math.sin(eps));   // ecliptic Y → scene z
+}
+photoLoader.load(SW_TEX + 'milkyway.jpg', tex => {
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = maxAniso;
+  // A BackSide sphere shows its texture mirrored from inside; flipping u makes
+  // the sampling match three.js' equirect-background convention → correct sky.
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.repeat.x = -1;
+  tex.offset.x = 1;
+  const sky = new THREE.Mesh(
+    // big sphere around the camera (inside camera.far, behind every body);
+    // slightly dimmed so the planets and orbit lines stay the main attraction
+    new THREE.SphereGeometry(2900, 64, 32),
+    new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, depthWrite: false, color: 0x8a8a92 }));
+  // orient like the real sky: galactic centre at the texture's horizontal
+  // middle (local +X on a three.js sphere), north galactic pole at the top
+  // (local +Y). Right-handed basis → proper rotation.
+  const gc = raDecToScene(266.405, -28.936);     // direction of Sagittarius A*
+  const ngp = raDecToScene(192.8595, 27.1284);   // galactic north pole
+  const yUp = ngp.sub(gc.clone().multiplyScalar(ngp.dot(gc))).normalize();
+  const zCol = new THREE.Vector3().crossVectors(gc, yUp);
+  sky.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(gc, yUp, zCol));
+  // keep the sky centred on the camera (skybox style): zero parallax and it
+  // can never be clipped by the far plane, no matter how far the user flies.
+  milkySky = sky;
+  scene.add(sky);
+}, undefined, () => {});   // load error → keep the plain procedural starfield
 
 // --- sun --------------------------------------------------------------
 const procMaps = {}; // key -> procedural surface texture (fallback / toggle)
@@ -2296,6 +2340,9 @@ function animate() {
     lastFollowShown = shownKey;
     for (const b of document.querySelectorAll('.placeBtn')) b.classList.toggle('active', b.dataset.key === shownKey);
   }
+
+  // sky sphere follows the camera → zero parallax, never clipped by far plane
+  if (milkySky) milkySky.position.copy(camera.position);
 
   updateHover();
   renderer.render(scene, camera);
