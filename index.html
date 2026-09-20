@@ -422,7 +422,8 @@ const I18N = {
                 'The Moon casts a real shadow on Earth — press 🌑 Eclipse to watch it sweep across the planet!'] },
       moon:    { name: 'The Moon', type: 'Earth\u2019s only natural satellite',
         facts: ['The Moon is Earth\u2019s best friend in space. It keeps our oceans moving and our seasons steady.',
-                'When it slips between the Sun and Earth, its shadow causes a solar eclipse!'] },
+                'When it slips between the Sun and Earth, its shadow causes a solar eclipse!',
+                'The Moon always shows us the same face: it turns exactly once while it orbits once \u2014 like walking around a chair while always looking at it.'] },
       mars:    { name: 'Mars', type: 'The red planet',
         facts: ['Mars looks red because its ground is full of rust (iron oxide).',
                 'It has the biggest volcano in the solar system — more than twice as tall as any mountain on Earth.',
@@ -528,7 +529,8 @@ const I18N = {
                 'Der Mond wirft einen echten Schatten auf die Erde — drücke 🌑 Finsternis und schau zu, wie er über den Planeten wandert!'] },
       moon:    { name: 'Der Mond', type: 'Einziger natürlicher Satellit der Erde',
         facts: ['Der Mond ist die beste Freundin der Erde im Weltraum. Er hält unsere Ozeane in Bewegung.',
-                'Wenn er sich zwischen Sonne und Erde schiebt, verursacht sein Schatten eine Sonnenfinsternis!'] },
+                'Wenn er sich zwischen Sonne und Erde schiebt, verursacht sein Schatten eine Sonnenfinsternis!',
+                'Der Mond zeigt der Erde immer dieselbe Seite: Er dreht sich genau einmal, während er einmal um die Erde kreist \u2014 wie beim Um-die-Stuhl-Gehen mit Blick zum Stuhl.'] },
       mars:    { name: 'Mars', type: 'Der rote Planet',
         facts: ['Der Mars sieht rot aus, weil sein Boden voller Rost (Eisenoxid) ist.',
                 'Er hat den größten Vulkan des Sonnensystems — mehr als doppelt so hoch wie jeder Berg auf der Erde.',
@@ -1614,7 +1616,11 @@ function updatePositions() {
       earthPos.z + Math.sin(ma) * MOON_DIST * Math.cos(moonInc)
     );
     moonMesh.position.copy(moonPos);
-    moonMesh.rotation.y = ma + Math.PI;   // tidally locked
+    // Tidally locked: the same face always points at Earth. The texture's centre
+    // meridian (u=0.5, the near-side maria) sits on local +X, and rotation.y = θ
+    // aims +X at (cos θ, 0, −sin θ) — so aim it along the Moon→Earth direction.
+    const toEarthX = earthPos.x - moonPos.x, toEarthZ = earthPos.z - moonPos.z;
+    moonMesh.rotation.y = Math.atan2(-toEarthZ, toEarthX);
 
     // keep the (scene-parented) Moon label above the scaled Moon
     const mr = realScale ? Math.max(realSceneR('moon'), 0.15) : MOON_R;
@@ -2363,7 +2369,14 @@ window.__ssx = {
     return { count: hits.length, first: hits[0] ? { key: hits[0].object.userData.bodyKey, dist: +hits[0].distance.toFixed(2) } : null };
   },
   camPos: () => camera.position.toArray(),
-  bodyWorld: (key) => bodyWorldPos(key).toArray()
+  bodyWorld: (key) => bodyWorldPos(key).toArray(),
+  // Tidal-lock invariant: angle (deg) between the Moon mesh's +X axis (texture
+  // centre meridian = near side) and the Moon→Earth direction. ~0 = locked.
+  moonLockErr() {
+    const d = earthPos.clone().sub(moonPos); d.y = 0;
+    const f = new THREE.Vector3(1, 0, 0).applyQuaternion(moonMesh.quaternion); f.y = 0;
+    return +THREE.MathUtils.radToDeg(f.angleTo(d)).toFixed(2);
+  }
 };
 
 // =====================================================================
