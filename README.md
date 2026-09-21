@@ -1,5 +1,12 @@
 # Solar System Explorer
 
+> ⚠️ **This project was vibe-coded with AI.** It was built entirely (or almost
+> entirely) with AI assistance, by prompting and steering rather than careful
+> hand-crafting. Use it **as-is, with no guarantees of any kind** — no warranty
+> that it works, is bug-free, or is suitable for anything in particular
+> (see [LICENSE](LICENSE)). It's meant for fun and learning; expect the odd
+> rough edge. PRs to un-vibe it are welcome. 🙂
+
 A 3D, browser-based solar system for kids: fly through space with WASD + mouse,
 tap or click any planet to travel to it, and watch a real solar eclipse play out
 over Earth. Works on desktop **and on phones/tablets** — the layout adapts to
@@ -7,8 +14,10 @@ small screens and all controls have touch equivalents (see below).
 
 By default everything (textures included) is generated **procedurally in the browser**
 — no image files, no server. There is also an optional **📷 Photos**
-mode that swaps in real planet photographs (loaded from the internet); if a photo can't
-be loaded, that body simply keeps its procedural texture, so you never see broken images.
+mode with three quality tiers — 🌱 procedural drawings (offline), ⚖️ medium photos
+(≈ 3 MB) and 💎 full-size photos (≈ 65 MB) — that swaps in real planet photographs
+(loaded from the internet); if a photo can't be loaded, that body simply keeps its
+procedural texture, so you never see broken images.
 
 > **🚀 Just want to play around?** Try the live demo — no download needed:
 > <https://solar-explorer-demo.netlify.app/>
@@ -31,9 +40,10 @@ That's it. No build step, no dependencies to install.
 > (Your browser may keep the file in its cache after the first visit, which can let
 > a reload work offline — but that's not guaranteed.)
 >
-> The optional 📷 Photos mode additionally downloads real planet textures (from
-> `raw.githubusercontent.com`). Any photo that fails to load simply keeps its
-> procedural texture.
+> The optional 📷 Photos modes additionally download real planet textures (from
+> `raw.githubusercontent.com`, or via the `images.weserv.nl` image proxy for the ⚖️ medium
+> tier, which scales them down before they reach your browser). Any photo that fails to
+> load simply keeps its procedural texture. The 🌱 low tier never downloads anything.
 
 Optional — serve it statically if you prefer:
 
@@ -63,7 +73,7 @@ python3 -m http.server 8000
 | 🌑 Eclipse button | start a solar eclipse over Earth |
 | `?` | help / controls |
 | EN / DE button | switch language (remembered) |
-| 📷 Photos button | switch between real photos and built-in drawings (remembered) |
+| 📷 Photos button | pick the image quality: 🌱 built-in drawings / ⚖️ real photos, small (≈ 3 MB) / 💎 real photos, full size (≈ 65 MB) (remembered) |
 | 🔬 Real size button | show every planet at its true size relative to the Sun — they get tiny! (remembered) |
 | 📏 Compare button | line up all 8 planets side by side at their true relative sizes, with the Sun above as light source (remembered) |
 | 🗺 Places button | show/hide the list of all places you can fly to (remembered) |
@@ -73,16 +83,23 @@ python3 -m http.server 8000
 
 - **Sun + all 8 planets** with realistic relative sizes, orbital periods and tilts
   (Uranus rolls on its side, Venus spins backwards), plus Earth's Moon.
-- **Two texture modes**:
-  - *Procedural (default, offline)*: real-looking continents, oceans, ice caps and
+- **Three image-quality tiers** (📷 menu):
+  - *🌱 Low — procedural (default, offline)*: real-looking continents, oceans, ice caps and
     drifting clouds on Earth; Jupiter's bands and Great Red Spot; Saturn's rings with
-    the Cassini division; craters on the Moon; a churning solar surface.
-  - *📷 Photos*: real planet photographs for the Sun, all 8 planets and the Moon,
-    loaded from the internet. Your choice is remembered; any photo that fails to load
-    (e.g. offline) falls back to its procedural texture automatically. All photos
-    come from [Solar-Wanderer](https://github.com/hyqzz/Solar-Wanderer)
-    (solarsystemscope.com, CC-BY-4.0 — NASA/USGS/SDO data), including a real NASA
-    cloud photo for Earth's drifting cloud layer. In-app credits are shown in the
+    the Cassini division; craters on the Moon; a churning solar surface. Nothing is ever
+    downloaded in this mode.
+  - *⚖️ Medium — real photos, small*: the same photographs scaled down to ≤ 2048 px by an
+    image proxy before download (≈ 3 MB total, ≈ 10× less GPU memory than full size).
+  - *💎 High — real photos, full size*: the original full-resolution photographs (≈ 65 MB).
+  Your choice is remembered; any photo that fails to load (e.g. offline) falls back to
+  its procedural texture automatically. All photos come from
+  [Solar-Wanderer](https://github.com/hyqzz/Solar-Wanderer)
+  (solarsystemscope.com, CC-BY-4.0 — NASA/USGS/SDO data), including a real NASA
+  cloud photo for Earth's drifting cloud layer. In-app credits are shown in the help window (?).
+- **🌌 Milky Way backdrop**: in the photo tiers, the procedural starfield is replaced by a
+  real equirectangular Milky Way panorama on a camera-following sphere, oriented with
+  correct galactic coordinates (galactic centre and north pole where they really are).
+  Falls back to the procedural stars when unavailable or in 🌱 low mode.
     help window (?).
 - **Correct lighting & shadows**: one light at the Sun — every planet shows a crisp
   day/night terminator. The Moon's and the rings' shadows are computed *analytically*
@@ -145,7 +162,8 @@ and the Moon's usual tilted orbit.
   every frame, so planets also speed up near perihelion and slow down at
   aphelion, as they really do. At t=0 the planets sit where they actually were
   on Jan 1, 2000.
-- The whole app is a single self-contained `index.html` (~2200 lines).
+- The whole app is a single self-contained `index.html` (~2500 lines) — including the
+  favicon (an inline SVG data URI, no extra file).
 
 ## License
 

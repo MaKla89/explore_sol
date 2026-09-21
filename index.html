@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Solar System Explorer</title>
+<!-- Favicon: inline SVG (sun + orbit + planet), no extra file — keeps the app self-contained -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3CradialGradient id='s' cx='35%25' cy='35%25' r='75%25'%3E%3Cstop offset='0%25' stop-color='%23fff3b0'/%3E%3Cstop offset='55%25' stop-color='%23ffb347'/%3E%3Cstop offset='100%25' stop-color='%23ff7b00'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='%230a0f24'/%3E%3Cellipse cx='32' cy='32' rx='27' ry='10' fill='none' stroke='%23ffd24a' stroke-width='2.5' opacity='.8' transform='rotate(-24 32 32)'/%3E%3Ccircle cx='32' cy='32' r='13' fill='url(%23s)'/%3E%3Ccircle cx='51' cy='18' r='4.5' fill='%237fb2ff'/%3E%3C/svg%3E">
 <style>
   :root {
     --card-bg: rgba(8, 14, 32, 0.82);
@@ -261,7 +263,7 @@
   <div id="texMenu" class="card">
     <button class="texOpt" data-q="low"><span id="tqLowT">🌱 Low — built-in drawings</span><span class="sub" id="tqLowS">No internet needed, smallest memory</span></button>
     <button class="texOpt" data-q="medium"><span id="tqMedT">⚖️ Medium — real photos (small)</span><span class="sub" id="tqMedS">Download ≈ 3 MB · loads fast</span></button>
-    <button class="texOpt" data-q="high"><span id="tqHighT">🌟 High — real photos (full size)</span><span class="sub" id="tqHighS">Download ≈ 65 MB · best detail, slow start</span></button>
+    <button class="texOpt" data-q="high"><span id="tqHighT">💎 High — real photos (full size)</span><span class="sub" id="tqHighS">Download ≈ 65 MB · best detail, slow start</span></button>
   </div>
 
   <div id="infocard" class="card">
@@ -372,12 +374,13 @@ const I18N = {
     places: '🗺 Places',
     placesTitle: 'Where to fly?',
     // 📷 quality menu: button label per tier + the option rows
-    texBtn: ['🌱 Low', '⚖️ Medium', '🌟 High'],
+    // (💎 not 🌟 for high: a gold star vanishes on the yellow active-button background)
+    texBtn: ['🌱 Low', '⚖️ Medium', '💎 High'],
     tqLowT: '🌱 Low — built-in drawings',
     tqLowS: 'No internet needed, smallest memory',
     tqMedT: '⚖️ Medium — real photos (small)',
     tqMedS: 'Download ≈ 3 MB · loads fast',
-    tqHighT: '🌟 High — real photos (full size)',
+    tqHighT: '💎 High — real photos (full size)',
     tqHighS: 'Download ≈ 65 MB · best detail, slow start',
     eclipseBtn: '🌑 Eclipse',
     scaleBtn: '🔬 Real size',
@@ -486,12 +489,12 @@ const I18N = {
     places: '🗺 Orte',
     placesTitle: 'Wohin fliegen?',
     // 📷 quality menu: button label per tier + the option rows
-    texBtn: ['🌱 Niedrig', '⚖️ Mittel', '🌟 Hoch'],
+    texBtn: ['🌱 Niedrig', '⚖️ Mittel', '💎 Hoch'],
     tqLowT: '🌱 Niedrig — eigene Zeichnungen',
     tqLowS: 'Ohne Internet, kleinster Speicher',
     tqMedT: '⚖️ Mittel — echte Fotos (klein)',
     tqMedS: 'Download ≈ 3 MB · lädt schnell',
-    tqHighT: '🌟 Hoch — echte Fotos (volle Größe)',
+    tqHighT: '💎 Hoch — echte Fotos (volle Größe)',
     tqHighS: 'Download ≈ 65 MB · beste Details, langsamer Start',
     eclipseBtn: '🌑 Finsternis',
     scaleBtn: '🔬 Echte Größe',
