@@ -69,6 +69,7 @@ python3 -m http.server 8000
 | Mouse wheel | zoom in / out |
 | Click a planet / the Sun / the Moon | fly to it and follow it |
 | `Esc` | stop following / close window |
+| `F3` | show/hide the performance stats overlay — frame rate, JS time, real render size & pixel-ratio, draw calls/triangles and live shader/geometry/texture counts. Handy for diagnosing sluggishness or high GPU load (on some laptops press `Fn` + `F3`) |
 | Bottom bar | pause, or set the time speed on a continuous slider (0.001 … 100 days per second; releasing near the marker snaps back to the default 0.02 d/s) |
 | 🌑 Eclipse button | start a solar eclipse over Earth |
 | `?` | help / controls |
@@ -123,6 +124,10 @@ python3 -m http.server 8000
   big the planets really are compared to each other.
 - **🗺 Places list**: a hideable panel listing every place you can visit — click an entry
   to fly there, no hunting for dark dots. The place you're following is highlighted.
+- **📊 Performance overlay (`F3`)**: a tiny corner readout of frame rate, per-frame JS time, the real
+  render resolution & pixel-ratio, draw calls/triangles and live shader/geometry/texture counts —
+  everything needed to tell whether a stutter is GPU fill-rate, CPU, or something else. Costs nothing
+  when hidden (no blur, updates only while shown).
 - **Bilingual UI** (English / German), language choice is remembered.
 - **Phone & tablet support**: the interface adapts to small screens — compact
   emoji buttons, the info card and the places list become bottom sheets, and all

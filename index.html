@@ -30,6 +30,19 @@
     -webkit-backdrop-filter: blur(8px);
   }
 
+  /* ---------- perf overlay (F3) — deliberately NO backdrop-filter/blur, so it
+     adds no GPU cost of its own and can't mask the thing we're measuring ---- */
+  #perf {
+    display: none;
+    position: absolute; left: 14px; bottom: 70px; z-index: 15;
+    pointer-events: none;
+    font: 12px/1.5 ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace;
+    color: #b8ffcf; text-shadow: 0 1px 2px #000;
+    background: rgba(4,8,16,0.72);
+    border: 1px solid rgba(120,255,180,0.25);
+    border-radius: 8px; padding: 6px 9px; white-space: pre;
+  }
+
   /* ---------- top bar ---------- */
   #topbar {
     position: absolute; top: 14px; left: 14px; right: 14px;
@@ -259,6 +272,7 @@
   </div>
 
   <div id="eclipseBanner" class="card"></div>
+  <div id="perf"></div>
 
   <div id="texMenu" class="card">
     <button class="texOpt" data-q="low"><span id="tqLowT">🌱 Low — built-in drawings</span><span class="sub" id="tqLowS">No internet needed, smallest memory</span></button>
@@ -409,6 +423,7 @@ const I18N = {
       ['Mouse wheel', 'Zoom in / out'],
       ['Click a planet', 'Fly to it and follow it'],
       ['Esc', 'Stop following / close windows'],
+      ['F3', 'Show/hide the performance stats (frame rate, render size, draw calls) — handy if the app feels sluggish. On some laptops you need Fn + F3.'],
       ['Bottom bar', 'Pause time or make it go faster'],
       ['🗺 Places', 'List of every place you can fly to — click one to travel there'],
       ['📷 Photos', 'Switch between real planet photos and the built-in drawings (which work offline)'],
@@ -523,6 +538,7 @@ const I18N = {
       ['Mausrad', 'Hinein- / herauszoomen'],
       ['Auf einen Planeten klicken', 'Dorthin fliegen und ihm folgen'],
       ['Esc', 'Folgen beenden / Fenster schließen'],
+      ['F3', 'Leistungsanzeige ein-/ausblenden (Bildrate, Rendergröße, Draw Calls) — hilfreich, wenn die App ruckelt. Bei manchen Laptops Fn + F3 drücken.'],
       ['Leiste unten', 'Zeit anhalten oder schneller machen'],
       ['🗺 Orte', 'Liste aller Orte, zu denen du fliegen kannst — anklicken zum Hinfliegen'],
       ['📷 Fotos', 'Wechselt zwischen echten Planetenfotos und den eingebauten Zeichnungen (die offline funktionieren)'],
@@ -863,21 +879,26 @@ if (quality !== 'low' && quality !== 'medium' && quality !== 'high') {
 }
 const photoTex = {};   // "quality:key" -> loaded THREE.Texture (only for photos that loaded OK)
 
+// Downscale huge originals (some are 8192×4096 ≈ 134 MB each in GPU memory).
+// maxW wide is indistinguishable at the sizes we view these bodies — and for
+// the full-screen sky it also cuts per-frame texture bandwidth a lot.
+function downscaleTexture(tex, maxW) {
+  const img = tex.image;
+  if (img.naturalWidth > maxW) {
+    const cv = document.createElement('canvas');
+    cv.width = maxW;
+    cv.height = Math.round(maxW * img.naturalHeight / img.naturalWidth);
+    cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+    tex.image = cv;
+  }
+}
+
 function loadPhoto(key, q = quality) {
   return new Promise(resolve => {
     photoLoader.load(
       photoUrl(key, q),
       tex => {
-        // Downscale huge originals (some are 8192×4096 ≈ 134 MB each in GPU memory).
-        // 4096 wide is indistinguishable at the sizes we view planets.
-        const img = tex.image;
-        if (img.naturalWidth > 4096) {
-          const cv = document.createElement('canvas');
-          cv.width = 4096;
-          cv.height = Math.round(4096 * img.naturalHeight / img.naturalWidth);
-          cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-          tex.image = cv;
-        }
+        downscaleTexture(tex, 4096);
         // The cloud photo is an alpha mask, not a color map — keep it in linear
         // space so the coverage matches what you see in the image.
         if (key !== 'earthClouds') tex.colorSpace = THREE.SRGBColorSpace;
@@ -1085,6 +1106,9 @@ function ensureSky(q) {
   if (photoTex[ck]) { attachSky(photoTex[ck]); return Promise.resolve(true); }
   return new Promise(resolve => {
     photoLoader.load(photoUrl('milkyway', q), tex => {
+      // the original panorama is 8192×4096 — as a full-screen backdrop that is
+      // ≈134 MB of VRAM and heavy per-frame bandwidth; ≤4096 px looks the same
+      downscaleTexture(tex, 4096);
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = maxAniso;
       // A BackSide sphere shows its texture mirrored from inside; flipping u makes
@@ -1828,6 +1852,7 @@ function updateCamera(dt) {
 const input = { keys: new Set() };
 addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
+  if (e.key === 'F3') { e.preventDefault(); togglePerf(); return; }
   if (['w','a','s','d',' '].includes(k)) e.preventDefault();
   input.keys.add(k === 'control' ? 'control' : k);
   if (k === 'escape') {
@@ -2384,9 +2409,58 @@ addEventListener('resize', () => {
 const clock = new THREE.Clock();
 let lastFollowShown = null;   // for the places-list highlight
 
-function animate() {
+// --- frame-rate cap ---------------------------------------------------
+// requestAnimationFrame runs at the monitor's refresh rate (120–165 Hz on
+// many displays), which can pin the GPU near 100 % for no visible gain.
+// Render on a fixed ~120 fps grid: on faster panels we skip just enough
+// vsyncs to average 120; on a 60 Hz display this is a no-op. The simulation
+// uses the real clock.getDelta(), so skipping frames never changes its speed.
+const FPS_CAP = 120;
+const FRAME_MS = 1000 / FPS_CAP;
+let nextFrameMs = 0;
+
+// --- perf overlay (F3) ------------------------------------------------
+// Diagnoses GPU load. Frame counting is always on (negligible); the DOM text
+// and the JS-time measurement only run while the overlay is visible, so it
+// costs nothing when hidden. Key numbers:
+//   buffer WxH @pr  → the REAL render resolution (css px × pixel-ratio). This
+//                     is fill-rate: if it's huge, MSAA+shading every pixel is
+//                     what pins the GPU — not textures or the belt.
+//   programs        → live compiled shader count. If this CLIMBS over time,
+//                     materials are recompiling every frame (a real bug).
+//   js ms           → CPU time we spend per frame. Tiny vs a high GPU load
+//                     means GPU-bound (fill-rate); comparable means CPU-bound.
+let perfOn = false, perfFrames = 0, perfLast = performance.now(), perfFps = 0, perfCpuMs = 0, perfDomLast = 0;
+function togglePerf() {
+  perfOn = !perfOn;
+  $('perf').style.display = perfOn ? 'block' : 'none';
+  if (perfOn) { perfFrames = 0; perfLast = performance.now(); perfDomLast = 0; }
+}
+function perfTick(cpuMs) {
+  perfFrames++;
+  const t = performance.now();
+  if (t - perfLast >= 500) { perfFps = perfFrames * 1000 / (t - perfLast); perfFrames = 0; perfLast = t; }
+  if (cpuMs != null) perfCpuMs = cpuMs;
+  if (!perfOn || t - perfDomLast < 250) return;
+  perfDomLast = t;
+  const info = renderer.info, w = renderer.domElement.width, h = renderer.domElement.height;
+  const progs = info.programs ? info.programs.length : '?';
+  $('perf').textContent =
+    `${perfFps.toFixed(0)} fps · ${perfCpuMs.toFixed(1)} ms js\n` +
+    `buffer ${w}×${h} @${renderer.getPixelRatio()}px\n` +
+    `draw ${info.render.calls} · tris ${(info.render.triangles / 1e6).toFixed(2)}M\n` +
+    `programs ${progs} · geo ${info.memory.geometries} · tex ${info.memory.textures}`;
+}
+
+function animate(now) {
   requestAnimationFrame(animate);
+  if (now === undefined) now = performance.now();   // first call, before rAF kicks in
+  if (now < nextFrameMs) return;
+  // resync after long stalls (hidden tab etc.) instead of burst-rendering to catch up
+  if (now - nextFrameMs > 250) nextFrameMs = now;
+  else nextFrameMs += FRAME_MS;
   const dt = Math.min(clock.getDelta(), 0.1);
+  const _perfT0 = perfOn ? performance.now() : 0;
 
   if (!paused) simDays += daysPerSecond * dt;
   updatePositions();
@@ -2465,6 +2539,7 @@ function animate() {
 
   updateHover();
   renderer.render(scene, camera);
+  perfTick(perfOn ? performance.now() - _perfT0 : null);
 }
 
 // Debug helper (used by automated tests): screen-space position of a body
@@ -2483,6 +2558,19 @@ window.__ssx = {
   },
   camPos: () => camera.position.toArray(),
   bodyWorld: (key) => bodyWorldPos(key).toArray(),
+  // loaded photo textures and their GPU pixel sizes (memory checks / tests)
+  texSizes: () => Object.fromEntries(
+    Object.entries(photoTex).map(([k, tx]) => [k, [tx.image.naturalWidth || tx.image.width, tx.image.naturalHeight || tx.image.height]])),
+  // rendered frame count — sample twice to measure the actual render rate
+  frame: () => renderer.info.render.frame,
+  // live perf snapshot (works whether or not the F3 overlay is shown)
+  perf: () => ({
+    fps: +perfFps.toFixed(1), jsMs: +perfCpuMs.toFixed(2),
+    buffer: [renderer.domElement.width, renderer.domElement.height],
+    pixelRatio: renderer.getPixelRatio(),
+    calls: renderer.info.render.calls, triangles: renderer.info.render.triangles,
+    programs: renderer.info.programs ? renderer.info.programs.length : null,
+  }),
   // Tidal-lock invariant: angle (deg) between the Moon mesh's +X axis (texture
   // centre meridian = near side) and the Moon→Earth direction. ~0 = locked.
   moonLockErr() {
