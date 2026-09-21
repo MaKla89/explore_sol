@@ -115,6 +115,21 @@
   .placeBtn:hover { background: rgba(52, 70, 130, 0.95); }
   .placeBtn.active { background: var(--accent); color: #1a1400; border-color: var(--accent); }
 
+  /* ---------- image quality menu (popover under the 📷 button) ---------- */
+  #texMenu {
+    position: absolute; top: 68px; right: 14px; width: 250px;
+    padding: 8px; display: none; flex-direction: column; gap: 4px; z-index: 15;
+  }
+  .texOpt {
+    text-align: left; padding: 8px 10px; font-size: 14px; border-radius: 8px;
+    background: rgba(30, 42, 80, 0.55);
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .texOpt .sub { font-size: 12px; font-weight: 400; color: var(--text-dim); }
+  .texOpt:hover { background: rgba(52, 70, 130, 0.95); }
+  .texOpt.active { background: var(--accent); color: #1a1400; border-color: var(--accent); }
+  .texOpt.active .sub { color: rgba(26, 20, 0, 0.75); }
+
   /* ---------- eclipse banner ---------- */
   #eclipseBanner {
     position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
@@ -190,6 +205,8 @@
        so every place is always reachable on any phone size. */
     #placesPanel { top: calc(102px + env(safe-area-inset-top)); max-height: none; }
     #placesList { max-height: none; }
+    /* the quality menu drops in from just below the (stacked) button row */
+    #texMenu { left: 8px; right: 8px; width: auto; top: calc(96px + env(safe-area-inset-top)); bottom: auto; }
     #timebar {
       left: 8px; right: 8px; transform: none;
       /* width is max-content (base rule), so auto margins centre the bar */
@@ -240,6 +257,12 @@
   </div>
 
   <div id="eclipseBanner" class="card"></div>
+
+  <div id="texMenu" class="card">
+    <button class="texOpt" data-q="low"><span id="tqLowT">🌱 Low — built-in drawings</span><span class="sub" id="tqLowS">No internet needed, smallest memory</span></button>
+    <button class="texOpt" data-q="medium"><span id="tqMedT">⚖️ Medium — real photos (small)</span><span class="sub" id="tqMedS">Download ≈ 3 MB · loads fast</span></button>
+    <button class="texOpt" data-q="high"><span id="tqHighT">🌟 High — real photos (full size)</span><span class="sub" id="tqHighS">Download ≈ 65 MB · best detail, slow start</span></button>
+  </div>
 
   <div id="infocard" class="card">
     <button id="infoClose" title="Close">✕</button>
@@ -348,7 +371,14 @@ const I18N = {
     labels: 'Labels',
     places: '🗺 Places',
     placesTitle: 'Where to fly?',
-    texPhoto: '📷 Photos',
+    // 📷 quality menu: button label per tier + the option rows
+    texBtn: ['🌱 Low', '⚖️ Medium', '🌟 High'],
+    tqLowT: '🌱 Low — built-in drawings',
+    tqLowS: 'No internet needed, smallest memory',
+    tqMedT: '⚖️ Medium — real photos (small)',
+    tqMedS: 'Download ≈ 3 MB · loads fast',
+    tqHighT: '🌟 High — real photos (full size)',
+    tqHighS: 'Download ≈ 65 MB · best detail, slow start',
     eclipseBtn: '🌑 Eclipse',
     scaleBtn: '🔬 Real size',
     compareBtn: '📏 Compare',
@@ -455,7 +485,14 @@ const I18N = {
     labels: 'Namen',
     places: '🗺 Orte',
     placesTitle: 'Wohin fliegen?',
-    texPhoto: '📷 Fotos',
+    // 📷 quality menu: button label per tier + the option rows
+    texBtn: ['🌱 Niedrig', '⚖️ Mittel', '🌟 Hoch'],
+    tqLowT: '🌱 Niedrig — eigene Zeichnungen',
+    tqLowS: 'Ohne Internet, kleinster Speicher',
+    tqMedT: '⚖️ Mittel — echte Fotos (klein)',
+    tqMedS: 'Download ≈ 3 MB · lädt schnell',
+    tqHighT: '🌟 Hoch — echte Fotos (volle Größe)',
+    tqHighS: 'Download ≈ 65 MB · beste Details, langsamer Start',
     eclipseBtn: '🌑 Finsternis',
     scaleBtn: '🔬 Echte Größe',
     compareBtn: '📏 Vergleich',
@@ -781,40 +818,54 @@ function makeGlowTexture() {
 
 // =====================================================================
 //  Photo textures (optional, loaded from the internet)
-//  Real planet photos. If a photo fails to load (offline, blocked, …),
-//  that body silently keeps its procedural texture — never broken images.
+//  Real planet photos in three quality levels, chosen in the 📷 menu:
+//    low    — procedural drawings only; NOTHING is downloaded at all
+//    medium — the same photos resized to ≤2048 px by a free image proxy
+//             (≈3 MB total download, ≈10× less GPU memory than high)
+//    high   — the original full-size photos (≈65 MB download)
+//  If a photo fails to load (offline, blocked, …), that body silently
+//  keeps its procedural texture — never broken images.
 // =====================================================================
 // All photos come from one source: Solar-Wanderer (CC-BY-4.0, based on
 // solarsystemscope.com — NASA / USGS / SDO data). A few files are named
 // differently than their body key.
 const SW_TEX = 'https://raw.githubusercontent.com/hyqzz/Solar-Wanderer/main/public/textures/';
-const PHOTO_URLS = {
-  sun:     SW_TEX + 'sun.jpg',
-  mercury: SW_TEX + 'mercury.jpg',
-  venus:   SW_TEX + 'venus_surface.jpg',
-  earth:   SW_TEX + 'earth_day.jpg',
-  mars:    SW_TEX + 'mars.jpg',
-  jupiter: SW_TEX + 'jupiter.jpg',
-  saturn:  SW_TEX + 'saturn.jpg',
-  uranus:  SW_TEX + 'uranus.jpg',
-  neptune: SW_TEX + 'neptune.jpg',
-  moon:    SW_TEX + 'moon.jpg',
+const PHOTO_FILE = {
+  sun: 'sun.jpg', mercury: 'mercury.jpg', venus: 'venus_surface.jpg',
+  earth: 'earth_day.jpg', mars: 'mars.jpg', jupiter: 'jupiter.jpg',
+  saturn: 'saturn.jpg', uranus: 'uranus.jpg', neptune: 'neptune.jpg',
+  moon: 'moon.jpg',
   // Real NASA cloud photo (white on black) — used as the cloud layer's alpha map.
-  earthClouds: SW_TEX + 'earth_clouds.jpg',
+  earthClouds: 'earth_clouds.jpg',
+  milkyway: 'milkyway.jpg',
 };
+// Medium quality: a free image proxy scales the originals down BEFORE they
+// reach the browser (planets ≤2048 px, sky ≤4096 px) — visually identical at
+// the sizes we view these bodies, but a fraction of the bytes and GPU memory.
+const WESERV = 'https://images.weserv.nl/?url=';
+function photoUrl(key, q) {
+  const u = SW_TEX + PHOTO_FILE[key];
+  if (q !== 'medium') return u;
+  const w = key === 'milkyway' ? 4096 : 2048;
+  return WESERV + encodeURIComponent(u) + '&w=' + w + '&output=jpg&q=82';
+}
 const photoLoader = new THREE.TextureLoader();
 photoLoader.setCrossOrigin('anonymous');
 
-let texMode = localStorage.getItem('ssx_texmode');
-if (texMode !== 'procedural' && texMode !== 'photo') texMode = 'procedural';  // guard: unknown/tampered value → default
-const photoTex = {};   // key -> loaded THREE.Texture (only for bodies that loaded OK)
+// 'low' | 'medium' | 'high'. Migrate the old two-state ssx_texmode setting:
+// procedural → low; photo → medium (the user wanted photos — medium is the sane default).
+let quality = localStorage.getItem('ssx_quality');
+if (quality !== 'low' && quality !== 'medium' && quality !== 'high') {
+  quality = localStorage.getItem('ssx_texmode') === 'photo' ? 'medium' : 'low';
+}
+const photoTex = {};   // "quality:key" -> loaded THREE.Texture (only for photos that loaded OK)
 
-function loadPhoto(key) {
+function loadPhoto(key, q = quality) {
   return new Promise(resolve => {
     photoLoader.load(
-      PHOTO_URLS[key],
+      photoUrl(key, q),
       tex => {
-        // Downscale huge photos (some are 8192×4096 ≈ 134 MB each in GPU memory).
+        // Downscale huge originals (some are 8192×4096 ≈ 134 MB each in GPU memory).
         // 4096 wide is indistinguishable at the sizes we view planets.
         const img = tex.image;
         if (img.naturalWidth > 4096) {
@@ -829,7 +880,7 @@ function loadPhoto(key) {
         if (key !== 'earthClouds') tex.colorSpace = THREE.SRGBColorSpace;
         tex.anisotropy = maxAniso;
         tex.needsUpdate = true;
-        photoTex[key] = tex;
+        photoTex[q + ':' + key] = tex;
         resolve(true);
       },
       undefined,
@@ -842,7 +893,8 @@ function loadPhoto(key) {
 function setBodyMap(key, usePhoto) {
   const mesh = key === 'sun' ? sunMesh : key === 'moon' ? moonMesh : bodies[key].mesh;
   const mat = mesh.material;
-  if (usePhoto && photoTex[key]) mat.map = photoTex[key];
+  const ptex = usePhoto ? photoTex[quality + ':' + key] : null;
+  if (ptex) mat.map = ptex;
   else mat.map = procMaps[key];
   mat.needsUpdate = true;
 }
@@ -999,32 +1051,50 @@ function raDecToScene(raDeg, decDeg) {
     -ye * Math.sin(eps) + ze * Math.cos(eps),   // ecliptic Z → scene y
     ye * Math.cos(eps) + ze * Math.sin(eps));   // ecliptic Y → scene z
 }
-photoLoader.load(SW_TEX + 'milkyway.jpg', tex => {
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = maxAniso;
-  // A BackSide sphere shows its texture mirrored from inside; flipping u makes
-  // the sampling match three.js' equirect-background convention → correct sky.
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.repeat.x = -1;
-  tex.offset.x = 1;
-  const sky = new THREE.Mesh(
-    // big sphere around the camera (inside camera.far, behind every body);
-    // slightly dimmed so the planets and orbit lines stay the main attraction
-    new THREE.SphereGeometry(2900, 64, 32),
-    new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, depthWrite: false, color: 0x8a8a92 }));
-  // orient like the real sky: galactic centre at the texture's horizontal
-  // middle (local +X on a three.js sphere), north galactic pole at the top
-  // (local +Y). Right-handed basis → proper rotation.
-  const gc = raDecToScene(266.405, -28.936);     // direction of Sagittarius A*
-  const ngp = raDecToScene(192.8595, 27.1284);   // galactic north pole
-  const yUp = ngp.sub(gc.clone().multiplyScalar(ngp.dot(gc))).normalize();
-  const zCol = new THREE.Vector3().crossVectors(gc, yUp);
-  sky.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(gc, yUp, zCol));
-  // keep the sky centred on the camera (skybox style): zero parallax and it
-  // can never be clipped by the far plane, no matter how far the user flies.
-  milkySky = sky;
-  scene.add(sky);
-}, undefined, () => {});   // load error → keep the plain procedural starfield
+// The sky photo is loaded lazily by setQuality() — never at startup in low
+// quality ("low" means: nothing external is downloaded, ever). The mesh is
+// created once; switching quality only swaps its texture.
+function attachSky(tex) {
+  if (!milkySky) {
+    milkySky = new THREE.Mesh(
+      // big sphere around the camera (inside camera.far, behind every body);
+      // slightly dimmed so the planets and orbit lines stay the main attraction
+      new THREE.SphereGeometry(2900, 64, 32),
+      new THREE.MeshBasicMaterial({ side: THREE.BackSide, depthWrite: false, color: 0x8a8a92 }));
+    // orient like the real sky: galactic centre at the texture's horizontal
+    // middle (local +X on a three.js sphere), north galactic pole at the top
+    // (local +Y). Right-handed basis → proper rotation.
+    const gc = raDecToScene(266.405, -28.936);     // direction of Sagittarius A*
+    const ngp = raDecToScene(192.8595, 27.1284);   // galactic north pole
+    const yUp = ngp.sub(gc.clone().multiplyScalar(ngp.dot(gc))).normalize();
+    const zCol = new THREE.Vector3().crossVectors(gc, yUp);
+    milkySky.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(gc, yUp, zCol));
+    // keep the sky centred on the camera (skybox style): zero parallax and it
+    // can never be clipped by the far plane, no matter how far the user flies.
+    scene.add(milkySky);
+  }
+  milkySky.material.map = tex;
+  milkySky.visible = true;
+}
+function hideSky() { if (milkySky) milkySky.visible = false; }
+function ensureSky(q) {
+  const ck = q + ':milkyway';
+  if (photoTex[ck]) { attachSky(photoTex[ck]); return Promise.resolve(true); }
+  return new Promise(resolve => {
+    photoLoader.load(photoUrl('milkyway', q), tex => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = maxAniso;
+      // A BackSide sphere shows its texture mirrored from inside; flipping u makes
+      // the sampling match three.js' equirect-background convention → correct sky.
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.repeat.x = -1;
+      tex.offset.x = 1;
+      photoTex[ck] = tex;
+      attachSky(tex);
+      resolve(true);
+    }, undefined, () => resolve(false));   // load error → keep the plain procedural starfield
+  });
+}
 
 // --- sun --------------------------------------------------------------
 const procMaps = {}; // key -> procedural surface texture (fallback / toggle)
@@ -1491,43 +1561,43 @@ function setCompareMode(on) {
 // perihelion (99.9); in reality the outer gap is ~4× the inner one.
 const BELT_INNER = 80, BELT_OUTER = 90;
 const BELT_COUNT = 3000, BELT_DUST_COUNT = 1500;
-const beltGeo = new THREE.DodecahedronGeometry(1, 0);
-const beltMat = new THREE.MeshStandardMaterial({ color: 0x8a7f70, roughness: 1 });
-const belt = new THREE.InstancedMesh(beltGeo, beltMat, BELT_COUNT);
-{
-  const dummy = new THREE.Object3D();
-  let s = 1234;
+// Each layer is split into angular sectors, one InstancedMesh each. three.js
+// culls an InstancedMesh by the bounding sphere of ALL its instances — as a
+// single ring that sphere covers the whole belt (r≈92 around the Sun), so any
+// glimpse of it would draw every rock. Per-sector spheres let the frustum drop
+// the ~5/8 of the belt that is off-screen.
+function buildBeltLayer(geo, mat, count, seed, powExp, ySpread, scMin, scSpan) {
+  const SECTORS = 8;
+  const buckets = Array.from({ length: SECTORS }, () => []);
+  let s = seed;
   const rnd = () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
-  for (let i = 0; i < BELT_COUNT; i++) {
-    const r = BELT_INNER + Math.pow(rnd(), 0.8) * (BELT_OUTER - BELT_INNER);
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < count; i++) {
+    const r = BELT_INNER + Math.pow(rnd(), powExp) * (BELT_OUTER - BELT_INNER);
     const a = rnd() * Math.PI * 2;
-    dummy.position.set(Math.cos(a) * r, (rnd() - 0.5) * 3, Math.sin(a) * r);
+    dummy.position.set(Math.cos(a) * r, (rnd() - 0.5) * ySpread, Math.sin(a) * r);
     dummy.rotation.set(rnd() * Math.PI, rnd() * Math.PI, rnd() * Math.PI);
-    const sc = 0.06 + rnd() * rnd() * 0.3;
+    const sc = scMin + rnd() * rnd() * scSpan;
     dummy.scale.set(sc, sc * (0.7 + rnd() * 0.6), sc);
     dummy.updateMatrix();
-    belt.setMatrixAt(i, dummy.matrix);
+    buckets[Math.floor(a / (Math.PI * 2) * SECTORS)].push(dummy.matrix.clone());
   }
+  const group = new THREE.Group();
+  for (const bucket of buckets) {
+    const im = new THREE.InstancedMesh(geo, mat, bucket.length);
+    for (let i = 0; i < bucket.length; i++) im.setMatrixAt(i, bucket[i]);
+    im.computeBoundingSphere();   // instance-aware sphere, computed once here
+    group.add(im);
+  }
+  return group;
 }
+const belt = buildBeltLayer(new THREE.DodecahedronGeometry(1, 0),
+  new THREE.MeshStandardMaterial({ color: 0x8a7f70, roughness: 1 }),
+  BELT_COUNT, 1234, 0.8, 3, 0.06, 0.3);
 scene.add(belt);
-const beltDustGeo = new THREE.TetrahedronGeometry(1, 0);
-const beltDustMat = new THREE.MeshStandardMaterial({ color: 0x6f675c, roughness: 1 });
-const beltDust = new THREE.InstancedMesh(beltDustGeo, beltDustMat, BELT_DUST_COUNT);
-{
-  const dummy = new THREE.Object3D();
-  let s = 987654;
-  const rnd = () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
-  for (let i = 0; i < BELT_DUST_COUNT; i++) {
-    const r = BELT_INNER + Math.pow(rnd(), 0.85) * (BELT_OUTER - BELT_INNER);
-    const a = rnd() * Math.PI * 2;
-    dummy.position.set(Math.cos(a) * r, (rnd() - 0.5) * 3.4, Math.sin(a) * r);
-    dummy.rotation.set(rnd() * Math.PI, rnd() * Math.PI, rnd() * Math.PI);
-    const sc = 0.02 + rnd() * rnd() * 0.07;
-    dummy.scale.set(sc, sc * (0.7 + rnd() * 0.6), sc);
-    dummy.updateMatrix();
-    beltDust.setMatrixAt(i, dummy.matrix);
-  }
-}
+const beltDust = buildBeltLayer(new THREE.TetrahedronGeometry(1, 0),
+  new THREE.MeshStandardMaterial({ color: 0x6f675c, roughness: 1 }),
+  BELT_DUST_COUNT, 987654, 0.85, 3.4, 0.02, 0.07);
 scene.add(beltDust);
 
 // --- labels -----------------------------------------------------------
@@ -2063,7 +2133,9 @@ function applyLang() {
   $('placesBtn').textContent = L.places;
   $('placesTitle').textContent = L.placesTitle;
   buildPlaces();
-  $('texBtn').textContent = L.texPhoto;
+  // 📷 quality menu texts + the button label (depends on the active tier)
+  for (const id of ['tqLowT', 'tqLowS', 'tqMedT', 'tqMedS', 'tqHighT', 'tqHighS']) $(id).textContent = L[id];
+  applyTexMode();
   $('eclipseBtn').textContent = L.eclipseBtn;
   $('scaleBtn').textContent = L.scaleBtn;
   $('compareBtn').textContent = L.compareBtn;
@@ -2179,39 +2251,77 @@ $('placesBtn').onclick = () => {
   refreshPlaces();
 };
 
-// --- texture mode: procedural (offline) vs real photos -----------------
+// --- image quality: low (procedural) / medium / high ------------------
 const TEX_KEYS = ['sun', 'moon', ...PLANETS.map(p => p.key)];
-// Photos still missing (the Earth cloud layer is an extra, non-body texture).
-function pendingPhotoKeys() {
-  const keys = TEX_KEYS.filter(k => !photoTex[k]);
-  if (!photoTex['earthClouds']) keys.push('earthClouds');
+// Photo textures still missing for a given quality (cloud layer included).
+function pendingPhotoKeys(q) {
+  const keys = TEX_KEYS.filter(k => !photoTex[q + ':' + k]);
+  if (!photoTex[q + ':earthClouds']) keys.push('earthClouds');
   return keys;
 }
+const QIDX = { low: 0, medium: 1, high: 2 };
 function applyTexMode() {
-  const usePhoto = texMode === 'photo';
+  const usePhoto = quality !== 'low';
   for (const k of TEX_KEYS) setBodyMap(k, usePhoto);
-  // Earth's cloud layer: in photo mode use the real NASA cloud photo as an
+  // Earth's cloud layer: with real photos use the NASA cloud photo as an
   // alpha mask (white clouds on black); otherwise the procedural clouds.
   const cl = bodies.earth && bodies.earth.clouds;
   if (cl) {
     const cm = cl.material;
-    if (usePhoto && photoTex['earthClouds']) { cm.map = null; cm.alphaMap = photoTex['earthClouds']; }
+    const ctex = usePhoto ? photoTex[quality + ':earthClouds'] : null;
+    if (ctex) { cm.map = null; cm.alphaMap = ctex; }
     else { cm.map = cl.userData.procMap; cm.alphaMap = null; }
     cm.needsUpdate = true;
   }
-  $('texBtn').textContent = t().texPhoto;
+  // the 📷 button shows which quality is active; the menu highlights it too
+  $('texBtn').textContent = t().texBtn[QIDX[quality]];
+  $('texBtn').dataset.short = '📷';
   $('texBtn').classList.toggle('active', usePhoto);
+  document.querySelectorAll('#texMenu .texOpt').forEach(b =>
+    b.classList.toggle('active', b.dataset.q === quality));
 }
-$('texBtn').onclick = async () => {
-  const next = texMode === 'photo' ? 'procedural' : 'photo';
-  if (next === 'photo') {
-    // load any photos we don't have yet (in parallel, with per-body fallback)
-    await Promise.all(pendingPhotoKeys().map(loadPhoto));
+let qualityBusy = false;
+async function setQuality(q) {
+  if (q === quality || qualityBusy) return;
+  qualityBusy = true;
+  const btn = $('texBtn');
+  try {
+    if (q === 'low') {
+      quality = q;
+      hideSky();                       // "low" = nothing external, not even the sky
+    } else {
+      btn.disabled = true;
+      // load this quality's photos in parallel (per-body fallback on error)
+      await Promise.all(pendingPhotoKeys(q).map(k => loadPhoto(k, q)));
+      await ensureSky(q);              // swap or fetch the matching sky photo
+      quality = q;
+    }
+    localStorage.setItem('ssx_quality', q);
+  } finally {
+    btn.disabled = false;
+    qualityBusy = false;
   }
-  texMode = next;
-  localStorage.setItem('ssx_texmode', texMode);
   applyTexMode();
+}
+// --- the quality popover -------------------------------------------------
+function openTexMenu() {
+  applyTexMode();   // make sure labels/highlight are fresh when it opens
+  $('texMenu').style.display = 'flex';
+}
+function closeTexMenu() { $('texMenu').style.display = 'none'; }
+$('texBtn').onclick = e => {
+  e.stopPropagation();
+  $('texMenu').style.display === 'flex' ? closeTexMenu() : openTexMenu();
 };
+document.querySelectorAll('#texMenu .texOpt').forEach(b => {
+  b.onclick = () => { closeTexMenu(); setQuality(b.dataset.q); };
+});
+// dismiss: click anywhere outside, or Esc
+document.addEventListener('click', e => {
+  if (e.target.closest('#texMenu')) return;
+  if (!$('texMenu').contains(e.target)) closeTexMenu();
+});
+window.addEventListener('keydown', e => { if (e.key === 'Escape') closeTexMenu(); });
 $('homeBtn').onclick = () => {
   followKey = null; flight = null; hideInfo();
   spinTheta = 0; spinPhi = 0;
@@ -2400,12 +2510,13 @@ async function start() {
   }
   updatePositions();
 
-  if (texMode === 'photo') {
+  if (quality !== 'low') {
     // restore the user's photo preference: load what we can, keep procedural for the rest
     $('loadingText').textContent = t().loading + ' 📷';
-    await Promise.all(pendingPhotoKeys().map(loadPhoto));
-    applyTexMode();
+    await Promise.all(pendingPhotoKeys(quality).map(k => loadPhoto(k, quality)));
+    await ensureSky(quality);   // the matching Milky Way (low never touches it)
   }
+  applyTexMode();
 
   $('loading').style.display = 'none';
   animate();
