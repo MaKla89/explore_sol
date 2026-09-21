@@ -276,8 +276,8 @@
 
   <div id="texMenu" class="card">
     <button class="texOpt" data-q="low"><span id="tqLowT">🌱 Low — built-in drawings</span><span class="sub" id="tqLowS">No internet needed, smallest memory</span></button>
-    <button class="texOpt" data-q="medium"><span id="tqMedT">⚖️ Medium — real photos (small)</span><span class="sub" id="tqMedS">Download ≈ 3 MB · loads fast</span></button>
-    <button class="texOpt" data-q="high"><span id="tqHighT">💎 High — real photos (full size)</span><span class="sub" id="tqHighS">Download ≈ 65 MB · best detail, slow start</span></button>
+    <button class="texOpt" data-q="medium"><span id="tqMedT">⚖️ Medium — real photos (saver)</span><span class="sub" id="tqMedS">≈10× less GPU memory · for weaker devices</span></button>
+    <button class="texOpt" data-q="high"><span id="tqHighT">💎 High — real photos (full detail)</span><span class="sub" id="tqHighS">Best detail · needs a strong graphics card</span></button>
   </div>
 
   <div id="infocard" class="card">
@@ -321,7 +321,10 @@
 <script type="module">
 // =====================================================================
 //  Solar System Explorer — a 3D learning game for kids
-//  Single-file app. Three.js is loaded from a CDN (needs internet once).
+//  Offline-first: the engine (vendor/) and the photos (textures/) are bundled
+//  next to this file, so a served copy needs no internet at all. Anything
+//  that's missing (e.g. a lone index.html) falls back to its original CDN /
+//  texture URL — a single downloaded file still works, just with internet.
 // =====================================================================
 
 const $ = id => document.getElementById(id);
@@ -334,21 +337,37 @@ function showFatal(title, msg) {
 }
 
 // --- Load Three.js with Subresource Integrity (SRI) ----------------------
-// The engine comes from a CDN, so we verify its SHA-384 hash BEFORE running
-// any of it: if the downloaded file doesn't match the known-good value for
-// three@0.160.0 (e.g. compromised CDN or altered content), nothing executes
-// and a warning is shown instead.
-const THREE_URL = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+// The engine is bundled in vendor/ (fully offline when served over http).
+// If that file is missing — e.g. only index.html was downloaded — we fall
+// back to the CDN. Either way its SHA-384 hash is verified BEFORE running
+// any of it: if the bytes don't match the known-good value for
+// three@0.160.0 (corrupted copy, compromised CDN, altered content…), nothing
+// executes and a warning is shown instead.
+const THREE_LOCAL = './vendor/three.module.js';
+const THREE_CDN = 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
 const THREE_SRI = 'sha384-61S/Nu32S3E5+n+KpCOTb2eRYps6fVKm+9Gz1QBvSePFthb46f063Aa/qe/lykFZ';
 
-async function loadThree() {
-  const res = await fetch(THREE_URL, { mode: 'cors' });
+async function fetchVerifiedThree(url) {
+  const res = await fetch(url, { mode: 'cors' });
   if (!res.ok) throw new Error('HTTP ' + res.status);
   const buf = await res.arrayBuffer();
   // Verify integrity first — the fetched code is not executed yet.
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-384', buf));
   const b64 = btoa(String.fromCharCode.apply(null, digest));
   if (THREE_SRI !== 'sha384-' + b64) throw new Error('integrity mismatch');
+  return buf;
+}
+
+async function loadThree() {
+  let buf;
+  try {
+    buf = await fetchVerifiedThree(THREE_LOCAL);   // bundled copy → offline
+  } catch (e) {
+    // A corrupt local file is a security signal — never paper over it by
+    // silently trusting another source. Only "not found/unreachable" falls back.
+    if (/integrity/i.test(String((e && e.message) || ''))) throw e;
+    buf = await fetchVerifiedThree(THREE_CDN);     // no local file → CDN, same check
+  }
   // Execute the verified bytes in a fresh module scope.
   const url = URL.createObjectURL(new Blob([buf], { type: 'text/javascript' }));
   try {
@@ -371,8 +390,8 @@ try {
     noCrypto
       ? 'This browser hides the security features needed to verify the 3D engine over an insecure connection. Please open this page via https://, localhost, or as a local file and reload.'
       : tampered
-        ? 'The Three.js file downloaded from the CDN did not match its expected checksum, so it was NOT executed. Please reload the page — if this keeps happening, do not use this app.'
-        : 'This app loads Three.js from the internet. Please check your connection and reload the page.');
+        ? 'The Three.js file (bundled or from the CDN) did not match its expected checksum, so it was NOT executed. Please reload the page — if this keeps happening, do not use this app.'
+        : 'This app needs its bundled vendor/three.module.js or internet access for the CDN copy. Please check your connection (or serve the full folder) and reload.');
   throw e;
 }
 
@@ -392,10 +411,10 @@ const I18N = {
     texBtn: ['🌱 Low', '⚖️ Medium', '💎 High'],
     tqLowT: '🌱 Low — built-in drawings',
     tqLowS: 'No internet needed, smallest memory',
-    tqMedT: '⚖️ Medium — real photos (small)',
-    tqMedS: 'Download ≈ 3 MB · loads fast',
-    tqHighT: '💎 High — real photos (full size)',
-    tqHighS: 'Download ≈ 65 MB · best detail, slow start',
+    tqMedT: '⚖️ Medium — real photos (saver)',
+    tqMedS: '≈10× less GPU memory · for weaker devices',
+    tqHighT: '💎 High — real photos (full detail)',
+    tqHighS: 'Best detail · needs a strong graphics card',
     eclipseBtn: '🌑 Eclipse',
     scaleBtn: '🔬 Real size',
     compareBtn: '📏 Compare',
@@ -507,10 +526,10 @@ const I18N = {
     texBtn: ['🌱 Niedrig', '⚖️ Mittel', '💎 Hoch'],
     tqLowT: '🌱 Niedrig — eigene Zeichnungen',
     tqLowS: 'Ohne Internet, kleinster Speicher',
-    tqMedT: '⚖️ Mittel — echte Fotos (klein)',
-    tqMedS: 'Download ≈ 3 MB · lädt schnell',
-    tqHighT: '💎 Hoch — echte Fotos (volle Größe)',
-    tqHighS: 'Download ≈ 65 MB · beste Details, langsamer Start',
+    tqMedT: '⚖️ Mittel — echte Fotos (Schonmodus)',
+    tqMedS: '≈10× weniger Grafikspeicher · für schwächere Geräte',
+    tqHighT: '💎 Hoch — echte Fotos (volle Details)',
+    tqHighS: 'Beste Details · braucht eine starke Grafikkarte',
     eclipseBtn: '🌑 Finsternis',
     scaleBtn: '🔬 Echte Größe',
     compareBtn: '📏 Vergleich',
@@ -836,18 +855,21 @@ function makeGlowTexture() {
 }
 
 // =====================================================================
-//  Photo textures (optional, loaded from the internet)
+//  Photo textures (bundled in textures/ — offline when served over http)
 //  Real planet photos in three quality levels, chosen in the 📷 menu:
-//    low    — procedural drawings only; NOTHING is downloaded at all
-//    medium — the same photos resized to ≤2048 px by a free image proxy
-//             (≈3 MB total download, ≈10× less GPU memory than high)
-//    high   — the original full-size photos (≈65 MB download)
-//  If a photo fails to load (offline, blocked, …), that body silently
-//  keeps its procedural texture — never broken images.
+//    low    — procedural drawings only; no image is loaded at all
+//    medium — the bundled photos downscaled to ≤2048 px in JS (sky keeps
+//             ≤4096) — ≈10× less GPU memory than high, for weaker devices
+//    high   — the bundled photos as they are (≤4096 px, what the old online
+//             "full size" tier actually displayed after its own downscale)
+//  If a local file is missing (e.g. only index.html was downloaded), that
+//  photo falls back to its original URL on the internet; if THAT fails too,
+//  the body silently keeps its procedural texture — never broken images.
 // =====================================================================
-// All photos come from one source: Solar-Wanderer (CC-BY-4.0, based on
-// solarsystemscope.com — NASA / USGS / SDO data). A few files are named
-// differently than their body key.
+// Bundled photos are pre-scaled copies (≤4096 px, jpg q90) of this source:
+// Solar-Wanderer (CC-BY-4.0, based on solarsystemscope.com — NASA / USGS /
+// SDO data). A few files are named differently than their body key.
+const TEX_LOCAL = './textures/';
 const SW_TEX = 'https://raw.githubusercontent.com/hyqzz/Solar-Wanderer/main/public/textures/';
 const PHOTO_FILE = {
   sun: 'sun.jpg', mercury: 'mercury.jpg', venus: 'venus_surface.jpg',
@@ -858,15 +880,23 @@ const PHOTO_FILE = {
   earthClouds: 'earth_clouds.jpg',
   milkyway: 'milkyway.jpg',
 };
-// Medium quality: a free image proxy scales the originals down BEFORE they
-// reach the browser (planets ≤2048 px, sky ≤4096 px) — visually identical at
-// the sizes we view these bodies, but a fraction of the bytes and GPU memory.
+// Load one photo file: bundled first; if it's missing (e.g. only index.html
+// was downloaded), fall back to the original URL on the internet — for the
+// ⚖️ medium tier through a free image proxy that scales it down BEFORE it
+// reaches the browser, so weak devices never pull the huge originals.
+// Resolves with the texture, or null when neither source could be reached.
 const WESERV = 'https://images.weserv.nl/?url=';
-function photoUrl(key, q) {
-  const u = SW_TEX + PHOTO_FILE[key];
-  if (q !== 'medium') return u;
-  const w = key === 'milkyway' ? 4096 : 2048;
-  return WESERV + encodeURIComponent(u) + '&w=' + w + '&output=jpg&q=82';
+function loadTexFile(key, q) {
+  let remote = SW_TEX + PHOTO_FILE[key];
+  if (q === 'medium') {
+    const w = key === 'milkyway' ? 4096 : 2048;
+    remote = WESERV + encodeURIComponent(remote) + '&w=' + w + '&output=jpg&q=82';
+  }
+  return new Promise(resolve => {
+    photoLoader.load(TEX_LOCAL + PHOTO_FILE[key], tex => resolve(tex), undefined, () =>
+      photoLoader.load(remote, tex => resolve(tex), undefined,
+        () => resolve(null)));   // offline too → caller keeps procedural
+  });
 }
 const photoLoader = new THREE.TextureLoader();
 photoLoader.setCrossOrigin('anonymous');
@@ -893,24 +923,23 @@ function downscaleTexture(tex, maxW) {
   }
 }
 
-function loadPhoto(key, q = quality) {
-  return new Promise(resolve => {
-    photoLoader.load(
-      photoUrl(key, q),
-      tex => {
-        downscaleTexture(tex, 4096);
-        // The cloud photo is an alpha mask, not a color map — keep it in linear
-        // space so the coverage matches what you see in the image.
-        if (key !== 'earthClouds') tex.colorSpace = THREE.SRGBColorSpace;
-        tex.anisotropy = maxAniso;
-        tex.needsUpdate = true;
-        photoTex[q + ':' + key] = tex;
-        resolve(true);
-      },
-      undefined,
-      () => resolve(false)   // error → keep procedural for this body
-    );
-  });
+// Max texture width per quality tier: medium saves GPU memory by halving the
+// detail (the sky is full-screen, so it keeps its full width in both tiers).
+function maxTexW(key, q) {
+  return q === 'medium' && key !== 'milkyway' ? 2048 : 4096;
+}
+
+async function loadPhoto(key, q = quality) {
+  const tex = await loadTexFile(key, q);
+  if (!tex) return false;                       // keep procedural for this body
+  downscaleTexture(tex, maxTexW(key, q));
+  // The cloud photo is an alpha mask, not a color map — keep it in linear
+  // space so the coverage matches what you see in the image.
+  if (key !== 'earthClouds') tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = maxAniso;
+  tex.needsUpdate = true;
+  photoTex[q + ':' + key] = tex;
+  return true;
 }
 
 // Swap one body's surface map between photo and procedural.
@@ -1101,26 +1130,24 @@ function attachSky(tex) {
   milkySky.visible = true;
 }
 function hideSky() { if (milkySky) milkySky.visible = false; }
-function ensureSky(q) {
+async function ensureSky(q) {
   const ck = q + ':milkyway';
-  if (photoTex[ck]) { attachSky(photoTex[ck]); return Promise.resolve(true); }
-  return new Promise(resolve => {
-    photoLoader.load(photoUrl('milkyway', q), tex => {
-      // the original panorama is 8192×4096 — as a full-screen backdrop that is
-      // ≈134 MB of VRAM and heavy per-frame bandwidth; ≤4096 px looks the same
-      downscaleTexture(tex, 4096);
-      tex.colorSpace = THREE.SRGBColorSpace;
-      tex.anisotropy = maxAniso;
-      // A BackSide sphere shows its texture mirrored from inside; flipping u makes
-      // the sampling match three.js' equirect-background convention → correct sky.
-      tex.wrapS = THREE.RepeatWrapping;
-      tex.repeat.x = -1;
-      tex.offset.x = 1;
-      photoTex[ck] = tex;
-      attachSky(tex);
-      resolve(true);
-    }, undefined, () => resolve(false));   // load error → keep the plain procedural starfield
-  });
+  if (photoTex[ck]) { attachSky(photoTex[ck]); return true; }
+  const tex = await loadTexFile('milkyway', q);
+  if (!tex) return false;               // keep the plain procedural starfield
+  // a full-screen 8K backdrop would be ≈134 MB of VRAM and heavy per-frame
+  // bandwidth; ≤4096 px looks the same (bundled copy is already ≤4096)
+  downscaleTexture(tex, maxTexW('milkyway', q));
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = maxAniso;
+  // A BackSide sphere shows its texture mirrored from inside; flipping u makes
+  // the sampling match three.js' equirect-background convention → correct sky.
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.repeat.x = -1;
+  tex.offset.x = 1;
+  photoTex[ck] = tex;
+  attachSky(tex);
+  return true;
 }
 
 // --- sun --------------------------------------------------------------

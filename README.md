@@ -12,12 +12,13 @@ tap or click any planet to travel to it, and watch a real solar eclipse play out
 over Earth. Works on desktop **and on phones/tablets** — the layout adapts to
 small screens and all controls have touch equivalents (see below).
 
-By default everything (textures included) is generated **procedurally in the browser**
-— no image files, no server. There is also an optional **📷 Photos**
-mode with three quality tiers — 🌱 procedural drawings (offline), ⚖️ medium photos
-(≈ 3 MB) and 💎 full-size photos (≈ 65 MB) — that swaps in real planet photographs
-(loaded from the internet); if a photo can't be loaded, that body simply keeps its
-procedural texture, so you never see broken images.
+By default everything is generated **procedurally in the browser** — no image files,
+no server. The optional **📷 Photos** mode swaps in real planet photographs, and it
+is **fully offline**: the 3D engine (`vendor/`) and all photos (`textures/`) are
+bundled right here, so a served copy needs no internet at all. The three tiers —
+🌱 procedural drawings, ⚖️ photos in GPU-saver mode (≤ 2048 px) and 💎 full-detail
+photos (≤ 4096 px) — differ only in memory use, not download size. If an image can't
+be loaded, that body simply keeps its procedural texture, so you never see broken images.
 
 > **🚀 Just want to play around?** Try the live demo — no download needed:
 > <https://solar-explorer-demo.netlify.app/>
@@ -28,30 +29,35 @@ procedural texture, so you never see broken images.
 
 ## Run it
 
-Just open `index.html` in a modern browser (Chrome, Edge, Firefox, Safari).
-
-That's it. No build step, no dependencies to install.
-
-> **Internet needed to start:** the page loads the 3D engine (Three.js) from a CDN
-> (`cdn.jsdelivr.net`) on startup, so an internet connection is required for the app
-> to launch. The download is verified against a SHA-384 checksum (Subresource Integrity)
-> *before* it runs, so tampered or altered content is never executed.
-> If the CDN is unreachable, a friendly error screen explains what happened.
-> (Your browser may keep the file in its cache after the first visit, which can let
-> a reload work offline — but that's not guaranteed.)
->
-> The optional 📷 Photos modes additionally download real planet textures (from
-> `raw.githubusercontent.com`, or via the `images.weserv.nl` image proxy for the ⚖️ medium
-> tier, which scales them down before they reach your browser). Any photo that fails to
-> load simply keeps its procedural texture. The 🌱 low tier never downloads anything.
-
-Optional — serve it statically if you prefer:
+Serve this folder with any static web server — **no internet needed**:
 
 ```bash
 cd explore_sol
 python3 -m http.server 8000
 # then open http://localhost:8000
 ```
+
+No build step, no dependencies to install.
+
+> **Why a server?** The engine is loaded as a local ES module, and browsers refuse
+> to load modules from `file://` — double-clicking `index.html` won't work. Any
+> static server does (`python3 -m http.server`, `npx serve`, or plain web hosting).
+>
+> **Just want the single file?** Download only `index.html` and open it served over
+> https (or the live demo below): anything missing locally — the engine, a photo —
+> automatically falls back to its original CDN / texture URL. So one HTML file still
+> works, it just needs internet for those parts.
+>
+> **Integrity:** whether the 3D engine comes from `vendor/` or the CDN, its SHA-384
+> checksum is verified *before* it runs, so a corrupted or tampered copy is never
+> executed. A corrupt local file is reported instead of silently replaced by the CDN.
+
+### What's bundled here
+
+| Folder | Contents |
+|---|---|
+| `vendor/` | `three.module.js` (≈ 1.3 MB) — byte-identical to the official three@0.160.0 release, MIT license |
+| `textures/` | All 12 planet / Moon / cloud / Milky-Way photos at ≤ 4096 px, jpg q90 (≈ 16 MB) — CC BY 4.0, [Solar-Wanderer](https://github.com/hyqzz/Solar-Wanderer) / [solarsystemscope.com](https://solarsystemscope.com/textures/) |
 
 ## Controls
 
@@ -74,7 +80,7 @@ python3 -m http.server 8000
 | 🌑 Eclipse button | start a solar eclipse over Earth |
 | `?` | help / controls |
 | EN / DE button | switch language (remembered) |
-| 📷 Photos button | pick the image quality: 🌱 built-in drawings / ⚖️ real photos, small (≈ 3 MB) / 💎 real photos, full size (≈ 65 MB) (remembered) |
+| 📷 Photos button | pick the image source: 🌱 built-in drawings / ⚖️ real photos, GPU-saver (≤ 2048 px) / 💎 real photos, full detail (≤ 4096 px) — all bundled, works offline (remembered) |
 | 🔬 Real size button | show every planet at its true size relative to the Sun — they get tiny! (remembered) |
 | 📏 Compare button | line up all 8 planets side by side at their true relative sizes, with the Sun above as light source (remembered) |
 | 🗺 Places button | show/hide the list of all places you can fly to (remembered) |
@@ -84,16 +90,20 @@ python3 -m http.server 8000
 
 - **Sun + all 8 planets** with realistic relative sizes, orbital periods and tilts
   (Uranus rolls on its side, Venus spins backwards), plus Earth's Moon.
-- **Three image-quality tiers** (📷 menu):
-  - *🌱 Low — procedural (default, offline)*: real-looking continents, oceans, ice caps and
+- **Three image-quality tiers** (📷 menu) — all photos are bundled locally, so the
+  tiers differ in GPU memory use, not download size:
+  - *🌱 Low — procedural (default)*: real-looking continents, oceans, ice caps and
     drifting clouds on Earth; Jupiter's bands and Great Red Spot; Saturn's rings with
-    the Cassini division; craters on the Moon; a churning solar surface. Nothing is ever
-    downloaded in this mode.
-  - *⚖️ Medium — real photos, small*: the same photographs scaled down to ≤ 2048 px by an
-    image proxy before download (≈ 3 MB total, ≈ 10× less GPU memory than full size).
-  - *💎 High — real photos, full size*: the original full-resolution photographs (≈ 65 MB).
-  Your choice is remembered; any photo that fails to load (e.g. offline) falls back to
-  its procedural texture automatically. All photos come from
+    the Cassini division; craters on the Moon; a churning solar surface. All computed
+    in the browser.
+  - *⚖️ Medium — real photos, GPU-saver*: the bundled photographs downscaled to
+    ≤ 2048 px in JS (sky keeps ≤ 4096) — ≈ 10× less GPU memory than full detail,
+    for weaker devices.
+  - *💎 High — real photos, full detail*: the bundled photographs as they are
+    (≤ 4096 px) — what the old online "full size" tier actually displayed after its
+    own downscale.
+  Your choice is remembered; any photo that fails to load falls back to its
+  procedural texture automatically. All photos come from
   [Solar-Wanderer](https://github.com/hyqzz/Solar-Wanderer)
   (solarsystemscope.com, CC-BY-4.0 — NASA/USGS/SDO data), including a real NASA
   cloud photo for Earth's drifting cloud layer. In-app credits are shown in the help window (?).
