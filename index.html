@@ -1862,12 +1862,20 @@ function updateCamera(dt) {
     if (keys.has('d')) camera.position.addScaledVector(right, speed);    // D = strafe right
     if (keys.has(' ')) camera.position.y += speed;
     if (keys.has('control')) camera.position.y -= speed;
-    // soft collision: don't get stuck inside a body
+    // soft collision: don't get stuck inside a body.
+    // NOTE: the outward direction must be computed BEFORE camera.position is
+    // overwritten — `copy(c).addScaledVector(camera.position.clone()...)` reads
+    // the ALREADY-copied position, which collapsed the direction to zero and
+    // teleported the camera to the body's exact centre every frame (stuck: any
+    // WASD step smaller than the radius got snapped straight back).
     for (const pk of ['sun', 'moon', ...PLANETS.map(p => p.key)]) {
       const c = bodyWorldPos(pk), r = bodyRadius(pk) * 1.08;
-      const d = camera.position.distanceTo(c);
-      if (d < r && d > 1e-6) {
-        camera.position.copy(c).addScaledVector(camera.position.clone().sub(c).normalize(), r);
+      const off = camera.position.clone().sub(c);
+      const d = off.length();
+      if (d < r) {
+        if (d > 1e-6) off.divideScalar(d);            // push out along centre -> camera
+        else camera.getWorldDirection(off).negate();  // dead centre: back out along the view axis
+        camera.position.copy(c).addScaledVector(off, r);
       }
     }
   }
