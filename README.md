@@ -23,7 +23,7 @@ be loaded, that body simply keeps its procedural texture, so you never see broke
 > **🚀 Just want to play around?** Try the live demo — no download needed:
 > <https://solar-explorer-demo.netlify.app/>
 
-![Solar System Explorer in 📷 photo mode — all eight planets on their real elliptical orbits, the asteroid belt and Saturn's rings](demo.png)
+![Solar System Explorer in � photo mode — the Sun, all eight planets on their real elliptical orbits and the asteroid belt, with the moon families of Jupiter (Io–Callisto) and Saturn (Enceladus, Rhea, Titan) circling on their own orbit rings](demo.png)
 
 ![Compare mode (📏) — all eight planets lined up side by side at their true relative sizes, with the Sun above as light source](compare.png)
 
@@ -57,7 +57,7 @@ No build step, no dependencies to install.
 | Folder | Contents |
 |---|---|
 | `vendor/` | `three.module.js` (≈ 1.3 MB) — byte-identical to the official three@0.160.0 release, MIT license |
-| `textures/` | All 12 planet / Moon / cloud / Milky-Way photos at ≤ 4096 px, jpg q90 (≈ 16 MB) — CC BY 4.0, [Solar-Wanderer](https://github.com/hyqzz/Solar-Wanderer) / [solarsystemscope.com](https://solarsystemscope.com/textures/) |
+| `textures/` | All 18 planet / moon / cloud / Milky-Way photos at ≤ 4096 px, jpg q90 (≈ 18 MB) — CC BY 4.0, [Solar-Wanderer](https://github.com/hyqzz/Solar-Wanderer) / [solarsystemscope.com](https://solarsystemscope.com/textures/) |
 
 ## Controls
 
@@ -84,12 +84,18 @@ No build step, no dependencies to install.
 | 🔬 Real size button | show every planet at its true size relative to the Sun — they get tiny! (remembered) |
 | 📏 Compare button | line up all 8 planets side by side at their true relative sizes, with the Sun above as light source (remembered) |
 | 🗺 Places button | show/hide the list of all places you can fly to (remembered) |
-| Labels button | show/hide name labels |
+| Labels button | cycle the name tags: Off → Planets → All (moons too) |
 
 ## Features
 
 - **Sun + all 8 planets** with realistic relative sizes, orbital periods and tilts
-  (Uranus rolls on its side, Venus spins backwards), plus Earth's Moon.
+  (Uranus rolls on its side, Venus spins backwards).
+- **14 moons you can fly to**: Earth's Moon plus the 13 biggest moons of the outer
+  planets — Jupiter's four Galilean moons (Io, Europa, Ganymede, Callisto), Saturn's
+  Enceladus, Rhea and Titan, the five big moons of Uranus (Miranda, Ariel, Umbriel,
+  Titania, Oberon) and Neptune's backwards-orbiting Triton. Each family circles its
+  planet on visible orbit rings — Uranus' moons ride along as the planet rolls on its
+  side, and a moon crossing the Sun side even casts a real transit shadow on it.
 - **Three image-quality tiers** (📷 menu) — all photos are bundled locally, so the
   tiers differ in GPU memory use, not download size:
   - *🌱 Low — procedural (default)*: real-looking continents, oceans, ice caps and
@@ -133,7 +139,8 @@ No build step, no dependencies to install.
   are hidden; the name labels form one neat line above the row. Great for seeing how
   big the planets really are compared to each other.
 - **🗺 Places list**: a hideable panel listing every place you can visit — click an entry
-  to fly there, no hunting for dark dots. The place you're following is highlighted.
+  to fly there, no hunting for dark dots. Moons are indented under their planet, and the
+  place you're following is highlighted.
 - **📊 Performance overlay (`F3`)**: a tiny corner readout of frame rate, per-frame JS time, the real
   render resolution & pixel-ratio, draw calls/triangles and live shader/geometry/texture counts —
   everything needed to tell whether a stutter is GPU fill-rate, CPU, or something else. Costs nothing
@@ -177,15 +184,16 @@ and the Moon's usual tilted orbit.
   every frame, so planets also speed up near perihelion and slow down at
   aphelion, as they really do. At t=0 the planets sit where they actually were
   on Jan 1, 2000.
-- The whole app is a single self-contained `index.html` (~2500 lines) — including the
+- The whole app is a single self-contained `index.html` (~3100 lines) — including the
   favicon (an inline SVG data URI, no extra file).
 
 ## License
 
 The code in this repository is licensed under the **MIT License** (see [LICENSE](LICENSE)).
 
-The optional 📷 Photos mode loads third-party textures from the internet at runtime
-(they are not part of this repository): all planet photos come from
+The optional 📷 Photos mode uses third-party photographs, bundled in `textures/`
+(and fetched from their original URLs when only `index.html` is served): all planet
+and moon photos come from
 [Solar-Wanderer](https://github.com/hyqzz/Solar-Wanderer) based on
 [solarsystemscope.com](https://solarsystemscope.com/textures/) (NASA/USGS/SDO data,
 CC-BY-4.0), and the 3D engine is [Three.js](https://threejs.org) (MIT). Full credits
