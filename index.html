@@ -791,9 +791,9 @@ function makeTexture(w, h, pixelFn) {
 // =====================================================================
 //  Procedural planet textures
 // =====================================================================
-function texEarth() {
+function texEarth(w = 2048, h = 1024) {
   const N = makeNoise(42);
-  const cv = makeTexture(2048, 1024, (u, v) => {
+  const cv = makeTexture(w, h, (u, v) => {
     const [nx, ny, nz] = cylPoint(u, v, 1.7);
     const e = N.fbm(nx + 3.1, ny + 7.7, nz + 1.9, 6);          // elevation
     const detail = N.fbm(nx * 3 + 9, ny * 3, nz * 3 + 4, 5);   // fine detail
@@ -817,9 +817,9 @@ function texEarth() {
   return tex;
 }
 
-function texClouds() {
+function texClouds(w = 2048, h = 1024) {
   const N = makeNoise(77);
-  const cv = makeTexture(2048, 1024, (u, v) => {
+  const cv = makeTexture(w, h, (u, v) => {
     const [nx, ny, nz] = cylPoint(u, v, 2.2);
     const c = N.fbm(nx + 31, ny + 12, nz + 5, 5);
     const a = clamp((c - 0.52) * 4.2, 0, 1) * 235;
@@ -830,9 +830,9 @@ function texClouds() {
   return tex;
 }
 
-function texCratered(baseA, baseB, seed, craters) {
+function texCratered(baseA, baseB, seed, craters, w = 1024, h = 512) {
   const N = makeNoise(seed);
-  const cv = makeTexture(1024, 512, (u, v) => {
+  const cv = makeTexture(w, h, (u, v) => {
     const [nx, ny, nz] = cylPoint(u, v, 2.0);
     const n = N.fbm(nx + 5, ny + 2, nz + 8, 5);
     return lerpC(baseA, baseB, n);
@@ -840,8 +840,9 @@ function texCratered(baseA, baseB, seed, craters) {
   const ctx = cv.getContext('2d');
   let s = seed;
   const rnd = () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const sc = w / 1024;   // crater geometry is authored for a 1024-wide map
   for (let i = 0; i < craters; i++) {
-    const x = rnd() * 1024, y = 60 + rnd() * 392, r = 2 + rnd() * rnd() * 16;
+    const x = rnd() * w, y = (60 + rnd() * 392) * sc, r = (2 + rnd() * rnd() * 16) * sc;
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fill();
     ctx.beginPath(); ctx.arc(x, y, r, Math.PI * 0.9, Math.PI * 1.7);
@@ -852,9 +853,9 @@ function texCratered(baseA, baseB, seed, craters) {
   return tex;
 }
 
-function texBanded(palette, seed, bandFreq, wobble, spot) {
+function texBanded(palette, seed, bandFreq, wobble, spot, w = 1024, h = 512) {
   const N = makeNoise(seed);
-  const cv = makeTexture(1024, 512, (u, v) => {
+  const cv = makeTexture(w, h, (u, v) => {
     const [nx, ny, nz] = cylPoint(u, v, 1.8);
     const w = N.fbm(nx * 1.4 + 3, ny * 1.4, nz * 1.4 + 6, 4) - 0.5;
     let yv = v + w * wobble;
@@ -876,9 +877,9 @@ function texBanded(palette, seed, bandFreq, wobble, spot) {
   return tex;
 }
 
-function texMars() {
+function texMars(w = 1024, h = 512) {
   const N = makeNoise(99);
-  const cv = makeTexture(1024, 512, (u, v) => {
+  const cv = makeTexture(w, h, (u, v) => {
     const [nx, ny, nz] = cylPoint(u, v, 1.9);
     const n = N.fbm(nx + 2, ny + 6, nz + 1, 5);
     let col = lerpC([150, 74, 42], [206, 128, 84], n);
@@ -893,9 +894,9 @@ function texMars() {
   return tex;
 }
 
-function texSun() {
+function texSun(w = 1024, h = 512) {
   const N = makeNoise(5);
-  const cv = makeTexture(1024, 512, (u, v) => {
+  const cv = makeTexture(w, h, (u, v) => {
     const [nx, ny, nz] = cylPoint(u, v, 3.0);
     const g = N.fbm(nx * 2 + 1, ny * 2, nz * 2 + 9, 4);
     return lerpC([255, 122, 8], [255, 244, 190], clamp(g * 1.3, 0, 1));
@@ -1154,6 +1155,163 @@ document.body.appendChild(renderer.domElement);
 
 const maxAniso = renderer.capabilities.getMaxAnisotropy();
 
+// =====================================================================
+//  Procedural textures — generated OFF the main thread (Web Worker pool)
+// ---------------------------------------------------------------------
+// Generating every planet/moon surface with 3D value-noise is heavy: done
+// synchronously it blocked the main thread for ~48 s on a phone, which is
+// exactly what made mobile hang forever on "Generating planets…". So the
+// pixel math now runs in a small pool of Web Workers; each body shows a
+// solid placeholder colour until its real texture arrives and swaps in.
+// Phones also render at half resolution (TEX_SCALE) — invisible at their
+// size, ~4× fewer pixels. If workers are unavailable we fall back to the
+// synchronous tex*() generators above. The noise math lives twice (here in
+// TEX_ENGINE_SRC for the worker, and in the tex*() helpers for the
+// fallback) — keep the two in sync.
+const TEX_SCALE = IS_SMALL ? 0.5 : 1;
+
+// self-contained worker source: value-noise + renderPixels(kind, params, w, h)
+const TEX_ENGINE_SRC = [
+'function makeNoise(seed){var s=seed>>>0;function rnd(){s=(s*1664525+1013904223)>>>0;return s/4294967296;}var perm=new Uint8Array(512);var p=[];for(var i=0;i<256;i++)p[i]=i;for(i=255;i>0;i--){var j=Math.floor(rnd()*(i+1));var t=p[i];p[i]=p[j];p[j]=t;}for(i=0;i<512;i++)perm[i]=p[i&255];function fade(t){return t*t*(3-2*t);}function n3(x,y,z){var X=Math.floor(x),Y=Math.floor(y),Z=Math.floor(z);x-=X;y-=Y;z-=Z;var u=fade(x),v=fade(y),w=fade(z);var xi=X&255,yi=Y&255,zi=Z&255;function h(i,j,k){return perm[(perm[(perm[i&255]+j)&255]+k)&255]/255;}function lerp(a,b,f){return a+(b-a)*f;}return lerp(lerp(lerp(h(xi,yi,zi),h(xi+1,yi,zi),u),lerp(h(xi,yi+1,zi),h(xi+1,yi+1,zi),u),v),lerp(lerp(h(xi,yi,zi+1),h(xi+1,yi,zi+1),u),lerp(h(xi,yi+1,zi+1),h(xi+1,yi+1,zi+1),u),v),w);}function fbm(x,y,z,oct){var a=0,amp=0.5,f=1,tot=0;for(var i=0;i<oct;i++){a+=amp*n3(x*f,y*f,z*f);tot+=amp;amp*=0.5;f*=2;}return a/tot;}return {n3:n3,fbm:fbm};}',
+'function cylPoint(u,v,scale){var th=u*Math.PI*2;return [Math.cos(th)*scale,(v-0.5)*scale*2,Math.sin(th)*scale];}',
+'function clamp(x,a,b){return Math.max(a,Math.min(b,x));}',
+'function lerpC(c1,c2,f){return [c1[0]+(c2[0]-c1[0])*f,c1[1]+(c2[1]-c1[1])*f,c1[2]+(c2[2]-c1[2])*f];}',
+'function renderPixels(kind,p,w,h){var data=new Uint8ClampedArray(w*h*4);var N;if(kind==="earth")N=makeNoise(42);else if(kind==="clouds")N=makeNoise(77);else if(kind==="cratered")N=makeNoise(p.seed);else if(kind==="banded")N=makeNoise(p.seed);else if(kind==="mars")N=makeNoise(99);else N=makeNoise(5);for(var y=0;y<h;y++){var v=y/h;for(var x=0;x<w;x++){var u=x/w;var col;if(kind==="earth"){var e6=cylPoint(u,v,1.7);var e=N.fbm(e6[0]+3.1,e6[1]+7.7,e6[2]+1.9,6);var detail=N.fbm(e6[0]*3+9,e6[1]*3,e6[2]*3+4,5);var lat=Math.abs(v-0.5)*2;var iceEdge=0.82+(N.n3(e6[0]*2,e6[1]*2,e6[2]*2)-0.5)*0.14;if(lat>iceEdge)col=[235,242,250];else if(e<0.5){var depth=clamp((0.5-e)*6,0,1);col=lerpC([38,96,168],[8,32,74],depth);}else if(e>0.66){var m=clamp((e-0.66)*8,0,1);col=lerpC([122,106,84],[196,190,178],m);}else{var veg=clamp(0.75-lat*0.9+(detail-0.5)*0.7,0,1);col=lerpC([168,148,92],[52,112,52],veg);}}else if(kind==="clouds"){var c3=cylPoint(u,v,2.2);var c=N.fbm(c3[0]+31,c3[1]+12,c3[2]+5,5);col=[255,255,255,clamp((c-0.52)*4.2,0,1)*235];}else if(kind==="cratered"){var c2=cylPoint(u,v,2.0);var n=N.fbm(c2[0]+5,c2[1]+2,c2[2]+8,5);col=lerpC(p.baseA,p.baseB,n);}else if(kind==="banded"){var b3=cylPoint(u,v,1.8);var ww=N.fbm(b3[0]*1.4+3,b3[1]*1.4,b3[2]*1.4+6,4)-0.5;var yv=v+ww*p.wobble;var t=(Math.sin(yv*Math.PI*p.bandFreq)*0.5+0.5);var idx=t*(p.palette.length-1);var i0=Math.floor(idx),f=idx-i0;col=lerpC(p.palette[i0],p.palette[Math.min(i0+1,p.palette.length-1)],f);if(p.spot){var du=Math.min(Math.abs(u-p.spot.u),1-Math.abs(u-p.spot.u));var dv=v-p.spot.v;var d=(du/p.spot.rx)*(du/p.spot.rx)+(dv/p.spot.ry)*(dv/p.spot.ry);if(d<1)col=lerpC(p.spot.color,col,clamp(d*1.4,0,1));}}else if(kind==="mars"){var m3=cylPoint(u,v,1.9);var n2=N.fbm(m3[0]+2,m3[1]+6,m3[2]+1,5);col=lerpC([150,74,42],[206,128,84],n2);var dark=N.fbm(m3[0]*2+11,m3[1]*2,m3[2]*2+3,4);if(dark>0.58)col=lerpC(col,[96,52,34],clamp((dark-0.58)*5,0,0.7));var lat2=Math.abs(v-0.5)*2;if(lat2>0.9+(n2-0.5)*0.06)col=[232,228,224];}else{var s3=cylPoint(u,v,3.0);var g=N.fbm(s3[0]*2+1,s3[1]*2,s3[2]*2+9,4);col=lerpC([255,122,8],[255,244,190],clamp(g*1.3,0,1));}var i=(y*w+x)*4;data[i]=col[0];data[i+1]=col[1];data[i+2]=col[2];data[i+3]=(col[3]===undefined?255:col[3]);}}return data;}',
+].join('\n');
+
+// A solid-colour canvas shown until the real texture is generated. It has
+// the SAME dimensions as the final map on purpose: three.js allocates GPU
+// storage at upload size and does not re-allocate when a texture's image is
+// later swapped for a bigger one (the swap would texSubImage2D past the old
+// bounds → GL_INVALID_VALUE). A plain fillRect is fast, so full-size costs
+// nothing. (alpha 0 → invisible: used for the cloud shell, which must not
+// become a white ball before its texture exists.)
+function placeholderTexture(rgb, w, h, alpha = 1) {
+  const cv = document.createElement('canvas');
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`;
+  ctx.fillRect(0, 0, w, h);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+// synchronous fallback (no Workers available): reuse the original tex*()
+// generators — at the same (device-scaled) size the worker would have used
+function syncCanvas(kind, params, w, h) {
+  switch (kind) {
+    case 'earth': return texEarth(w, h).image;
+    case 'clouds': return texClouds(w, h).image;
+    case 'mars': return texMars(w, h).image;
+    case 'sun': return texSun(w, h).image;
+    case 'cratered': return texCratered(params.baseA, params.baseB, params.seed, params.craters, w, h).image;
+    case 'banded': return texBanded(params.palette, params.seed, params.bandFreq, params.wobble, params.spot, w, h).image;
+  }
+  return null;
+}
+
+// --- worker pool -----------------------------------------------------
+const POOL_SIZE = Math.max(1, Math.min(navigator.hardwareConcurrency || 2, 4));
+let procWorkers = null, workerBroken = false, _wid = 0, _rr = 0;
+const procPending = new Map();   // id -> { res, rej }
+function makeProcWorker() {
+  const src = TEX_ENGINE_SRC + `
+self.onmessage = function (e) {
+  var d = e.data;
+  try {
+    var data = renderPixels(d.kind, d.params, d.w, d.h);
+    self.postMessage({ id: d.id, ok: true, w: d.w, h: d.h, buf: data.buffer }, [data.buffer]);
+  } catch (err) { self.postMessage({ id: d.id, ok: false, error: String(err) }); }
+};`;
+  const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+  const wk = new Worker(url);
+  wk.onmessage = (ev) => {
+    const d = ev.data; const cb = procPending.get(d.id); if (!cb) return;
+    procPending.delete(d.id);
+    if (d.ok) cb.res({ rgba: new Uint8ClampedArray(d.buf), w: d.w, h: d.h });
+    else cb.rej(new Error(d.error));
+  };
+  wk.onerror = () => {
+    // a dead worker (blocked blob: URL, crash…) → fall back to synchronous
+    // generation for every job still in flight and for all later ones
+    workerBroken = true;
+    for (const cb of procPending.values()) cb.rej(new Error('proc worker failed'));
+    procPending.clear();
+  };
+  return wk;
+}
+function initProcPool() {
+  if (procWorkers || workerBroken) return;
+  try { procWorkers = []; for (let i = 0; i < POOL_SIZE; i++) procWorkers.push(makeProcWorker()); }
+  catch (e) { workerBroken = true; procWorkers = null; }
+}
+function genViaWorker(job) {
+  return new Promise((res, rej) => {
+    const wk = procWorkers[_rr++ % procWorkers.length];
+    const id = ++_wid;
+    procPending.set(id, { res, rej });
+    wk.postMessage({ id, kind: job.kind, params: job.params, w: job.w, h: job.h });
+  });
+}
+
+// build the final canvas from raw pixels (craters are drawn on the main thread)
+function finishCanvas(job, rgba) {
+  const cv = document.createElement('canvas');
+  cv.width = job.w; cv.height = job.h;
+  const ctx = cv.getContext('2d');
+  ctx.putImageData(new ImageData(rgba, job.w, job.h), 0, 0);
+  if (job.kind === 'cratered' && job.params.craters) {
+    let s = job.params.seed;
+    const rnd = () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
+    const sc = job.w / 1024;   // crater geometry is authored for a 1024-wide map
+    for (let i = 0; i < job.params.craters; i++) {
+      const x = rnd() * job.w, y = (60 + rnd() * 392) * sc, r = (2 + rnd() * rnd() * 16) * sc;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, r, Math.PI * 0.9, Math.PI * 1.7);
+      ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = Math.max(1, r * 0.25); ctx.stroke();
+    }
+  }
+  return cv;
+}
+
+async function runProcJob(job) {
+  let canvas = null;
+  if (!workerBroken && procWorkers) {
+    try {
+      const out = await Promise.race([
+        genViaWorker(job),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('proc worker timeout')), 20000)),
+      ]);
+      canvas = finishCanvas(job, out.rgba);
+    } catch (e) { workerBroken = true; canvas = null; }
+  }
+  if (!canvas) canvas = syncCanvas(job.kind, job.params, job.w, job.h);   // fallback: original synchronous path
+  if (canvas) { job.tex.image = canvas; job.tex.needsUpdate = true; }
+}
+
+// bodies waiting for their texture: planets/sun/clouds early, major moons late
+const procQueueEarly = [], procQueueLate = [];
+function makeProcTexture(kind, params, baseW, baseH, phColor, late, phAlpha) {
+  const w = Math.max(2, Math.round(baseW * TEX_SCALE));
+  const h = Math.max(2, Math.round(baseH * TEX_SCALE));
+  const tex = placeholderTexture(phColor || [128, 128, 128], w, h, phAlpha);
+  tex.anisotropy = maxAniso;
+  (late ? procQueueLate : procQueueEarly).push({ kind, params, w, h, tex });
+  return tex;
+}
+async function runProcQueue(queue, showProgress) {
+  if (!queue.length) return;
+  initProcPool();
+  const total = queue.length; let done = 0;
+  await Promise.all(queue.map(async (job) => {
+    try { await runProcJob(job); } catch (e) {}
+    done++;
+    if (showProgress) $('loadingText').textContent = t().loading + ' ' + done + '/' + total;
+  }));
+}
+
 // --- lights -----------------------------------------------------------
 // decay=0 → no distance falloff: outer planets are as bright as inner ones
 // (physically the Sun's light fades with distance², but that would leave
@@ -1251,7 +1409,7 @@ async function ensureSky(q) {
 
 // --- sun --------------------------------------------------------------
 const procMaps = {}; // key -> procedural surface texture (fallback / toggle)
-procMaps.sun = texSun();
+procMaps.sun = makeProcTexture('sun', {}, 1024, 512, [255, 178, 64]);
 const sunMesh = new THREE.Mesh(
   new THREE.SphereGeometry(SUN_R, 64, 32),
   new THREE.MeshBasicMaterial({ map: procMaps.sun })
@@ -1301,25 +1459,31 @@ function makeOrbitPath(p, color, parent) {
   return line;
 }
 
+// kind + noise params + placeholder colour for each planet surface
+// (placeholder ≈ the body's average colour, so it looks right from far away)
+const PROC_PLANETS = {
+  mercury: ['cratered', { baseA: [120, 112, 104], baseB: [176, 168, 158], seed: 11, craters: 320 }, [148, 140, 131]],
+  venus:   ['banded', { palette: [[216,181,106],[232,207,154],[201,162,79],[226,199,138]], seed: 23, bandFreq: 9, wobble: 0.05 }, [219, 188, 119]],
+  earth:   ['earth', {}, [70, 110, 150]],
+  mars:    ['mars', {}, [178, 101, 63]],
+  jupiter: ['banded', { palette: [[216,202,157],[181,122,78],[227,211,179],[160,90,60],[214,196,150]], seed: 31, bandFreq: 13, wobble: 0.035,
+                        spot: { u: 0.3, v: 0.63, rx: 0.055, ry: 0.032, color: [181, 67, 46] } }, [196, 152, 111]],
+  saturn:  ['banded', { palette: [[224,205,160],[212,189,138],[201,177,124],[228,214,178]], seed: 41, bandFreq: 11, wobble: 0.03 }, [216, 196, 150]],
+  uranus:  ['banded', { palette: [[159,214,217],[146,204,210],[168,220,222]], seed: 51, bandFreq: 5, wobble: 0.02 }, [158, 213, 216]],
+  neptune: ['banded', { palette: [[63,102,212],[52,88,190],[74,116,224],[58,96,200]], seed: 61, bandFreq: 7, wobble: 0.03 }, [62, 101, 207]],
+};
+
 function buildPlanet(p) {
   const group = new THREE.Group();          // moves along the orbit
   const tiltG = new THREE.Group();          // axial tilt
   tiltG.rotation.z = THREE.MathUtils.degToRad(p.tilt);
   group.add(tiltG);
 
-  let map;
-  switch (p.key) {
-    case 'mercury': map = texCratered([120, 112, 104], [176, 168, 158], 11, 320); break;
-    case 'venus':   map = texBanded([[216,181,106],[232,207,154],[201,162,79],[226,199,138]], 23, 9, 0.05); break;
-    case 'earth':   map = texEarth(); break;
-    case 'mars':    map = texMars(); break;
-    case 'jupiter': map = texBanded([[216,202,157],[181,122,78],[227,211,179],[160,90,60],[214,196,150]], 31, 13, 0.035,
-                    { u: 0.3, v: 0.63, rx: 0.055, ry: 0.032, color: [181, 67, 46] }); break;
-    case 'saturn':  map = texBanded([[224,205,160],[212,189,138],[201,177,124],[228,214,178]], 41, 11, 0.03); break;
-    case 'uranus':  map = texBanded([[159,214,217],[146,204,210],[168,220,222]], 51, 5, 0.02); break;
-    case 'neptune': map = texBanded([[63,102,212],[52,88,190],[74,116,224],[58,96,200]], 61, 7, 0.03); break;
-  }
-  map.anisotropy = maxAniso;
+  // the surface map is generated in a worker (see TEX_ENGINE_SRC) — the body
+  // shows its average colour until the real texture swaps in
+  const [kind, params, ph] = PROC_PLANETS[p.key];
+  const big = p.key === 'earth' ? 2048 : 1024;
+  const map = makeProcTexture(kind, params, big, big / 2, ph);
   procMaps[p.key] = map;   // keep the procedural version for switching back
 
   const mesh = new THREE.Mesh(
@@ -1331,7 +1495,8 @@ function buildPlanet(p) {
 
   // Earth extras: clouds + atmosphere
   if (p.key === 'earth') {
-    const cloudMap = texClouds();
+    // transparent placeholder — no white ball before the clouds are drawn
+    const cloudMap = makeProcTexture('clouds', {}, 2048, 1024, [255, 255, 255], false, 0);
     const clouds = new THREE.Mesh(
       new THREE.SphereGeometry(p.r * 1.025, 64, 32),
       new THREE.MeshStandardMaterial({ map: cloudMap, transparent: true, depthWrite: false, alphaTest: 0.08, roughness: 1 })
@@ -1377,7 +1542,8 @@ function buildPlanet(p) {
 PLANETS.forEach(buildPlanet);
 
 // --- the Moon ---------------------------------------------------------
-procMaps.moon = texCratered([110, 108, 106], [178, 176, 172], 73, 420);
+procMaps.moon = makeProcTexture('cratered',
+  { baseA: [110, 108, 106], baseB: [178, 176, 172], seed: 73, craters: 420 }, 1024, 512, [144, 142, 140]);
 const moonMesh = new THREE.Mesh(
   new THREE.SphereGeometry(MOON_R, 48, 24),
   new THREE.MeshStandardMaterial({ map: procMaps.moon, roughness: 1 })
@@ -1461,8 +1627,11 @@ const MOON_PROC = {
 for (const mdef of MOONS) {
   const sys = moonSystem(mdef.parent);
   const [a, b, seed, craters] = MOON_PROC[mdef.key];
-  procMaps[mdef.key] = texCratered(a, b, seed, craters);
-  procMaps[mdef.key].anisotropy = maxAniso;
+  // late queue: the moons are the newest & least urgent bodies — they get
+  // their real texture after the scene is already on screen
+  procMaps[mdef.key] = makeProcTexture('cratered',
+    { baseA: a, baseB: b, seed, craters }, 1024, 512,
+    [(a[0] + b[0]) >> 1, (a[1] + b[1]) >> 1, (a[2] + b[2]) >> 1], true);
   const mesh = new THREE.Mesh(
     new THREE.SphereGeometry(mdef.r, 32, 16),
     new THREE.MeshStandardMaterial({ map: procMaps[mdef.key], roughness: 1 })
@@ -2935,6 +3104,12 @@ async function start() {
   }
   updatePositions();
 
+  // Generate the planet textures now — in parallel Workers, off the main
+  // thread, so the loading screen stays responsive and even phones finish
+  // in a second or two (half resolution + real parallelism). Bodies show
+  // their placeholder colour until their texture swaps in.
+  await runProcQueue(procQueueEarly, true);
+
   if (quality !== 'low') {
     // restore the user's photo preference: load what we can, keep procedural for the rest
     $('loadingText').textContent = t().loading + ' 📷';
@@ -2945,6 +3120,8 @@ async function start() {
 
   $('loading').style.display = 'none';
   animate();
+  // the major moons fill in quietly after the scene is already on screen
+  runProcQueue(procQueueLate, false);
 }
 start();
 </script>
