@@ -129,6 +129,9 @@
   .placeBtn { text-align: left; padding: 7px 10px; font-size: 14px; border-radius: 8px; background: rgba(30, 42, 80, 0.55); }
   .placeBtn:hover { background: rgba(52, 70, 130, 0.95); }
   .placeBtn.active { background: var(--accent); color: #1a1400; border-color: var(--accent); }
+  /* moons sit indented under their planet, a touch smaller & quieter —
+     the :not(.active) keeps the highlight colour working on them too */
+  .placeBtn.moon:not(.active) { margin-left: 16px; font-size: 13px; padding: 5px 9px; background: rgba(22, 32, 62, 0.42); color: #b9c4e8; }
 
   /* ---------- image quality menu (popover under the 📷 button) ---------- */
   #texMenu {
@@ -426,6 +429,9 @@ const I18N = {
     infoHintTouch: 'Tap empty space to stop following. Drag to look around, swipe to orbit, pinch to zoom, two-finger drag to fly.',
     closeInfo: 'Close',
     labelsShort: 'Aa',
+    // 3-state Labels button: full word per mode + a compact glyph for phones
+    labelModes: { off: 'Off', planets: 'Planets', all: 'All' },
+    labelShorts: { off: '🚫', planets: '🪐', all: '🌕' },
     texShort: '📷',
     scaleShort: '🔬',
     compareShort: '📏',
@@ -446,6 +452,7 @@ const I18N = {
       ['Bottom bar', 'Pause time or make it go faster'],
       ['🗺 Places', 'List of every place you can fly to — click one to travel there'],
       ['📷 Photos', 'Switch between real planet photos and the built-in drawings (which work offline)'],
+      ['Aa Labels', 'Cycle the name tags: Off → Planets → All (moons too)'],
       ['🌑 Eclipse', 'Start a solar eclipse over Earth!'],
       ['🔬 Real size', 'Show every planet at its true size relative to the Sun — they get tiny!'],
       ['📏 Compare', 'Line up all 8 planets side by side at their true relative sizes, with the Sun above — see how big they really are!'],
@@ -460,6 +467,7 @@ const I18N = {
       ['Bottom bar', 'Pause time or make it go faster'],
       ['🗺 Places', 'List of every place you can fly to — tap one to travel there'],
       ['📷 Photos', 'Switch between real planet photos and the built-in drawings (which work offline)'],
+      ['Aa Labels', 'Cycle the name tags: Off → Planets → All (moons too)'],
       ['🌑 Eclipse', 'Start a solar eclipse over Earth!'],
       ['🔬 Real size', 'Show every planet at its true size relative to the Sun — they get tiny!'],
       ['📏 Compare', 'Line up all 8 planets side by side at their true relative sizes, with the Sun above — see how big they really are!'],
@@ -513,6 +521,45 @@ const I18N = {
       belt:    { name: 'Asteroid Belt', type: 'Millions of rocky leftovers',
         facts: ['Between Mars and Jupiter float millions of rocky asteroids — leftovers from when the solar system was born.',
                 'Jupiter\u2019s strong gravity kept these rocks from ever joining together to form a planet.'] },
+      io:      { name: 'Io', type: 'Jupiter\u2019s volcano moon',
+        facts: ['Io is the most volcanic place in the whole solar system — its volcanoes spray lava higher than mountains!',
+                'It looks yellow-orange because of sulfur. Jupiter\u2019s gravity kneads Io like dough and heats it up inside.'] },
+      europa:  { name: 'Europa', type: 'An icy moon with an ocean underneath',
+        facts: ['Europa is covered by a shell of ice, and under it lies a deep ocean — maybe more water than all of Earth\u2019s oceans!',
+                'Scientists think tiny alien life could possibly live in its dark, watery depths.'] },
+      ganymede:{ name: 'Ganymede', type: 'The largest moon in the solar system',
+        facts: ['Ganymede is bigger than the planet Mercury — the biggest moon of all!',
+                'It is the only moon we know that has its own magnetic field.'] },
+      callisto:{ name: 'Callisto', type: 'A dark, ancient, cratered moon',
+        facts: ['Callisto is one of the most cratered moons in the solar system — its surface has not changed for billions of years.',
+                'It orbits far from Jupiter, so it escapes much of the radiation that zaps the other moons.'] },
+      enceladus:{ name: 'Enceladus', type: 'Saturn\u2019s tiny geyser moon',
+        facts: ['Enceladus shoots real water fountains from its south pole — plumes that reach all the way into space!',
+                'Its surface is the brightest in the solar system: fresh, clean ice that reflects almost all sunlight.'] },
+      rhea:    { name: 'Rhea', type: 'Saturn\u2019s second-largest moon',
+        facts: ['Rhea is a dirty snowball of a moon — mostly ice with some rock mixed in.',
+                'It orbits just outside Saturn\u2019s rings, together with Titan and the other big moons.'] },
+      titan:   { name: 'Titan', type: 'Saturn\u2019s moon with thick air and methane lakes',
+        facts: ['Titan is the only moon with a thick atmosphere, and its rivers and lakes are made of liquid methane — rocket fuel!',
+                'A little probe called Huygens once parachuted down through Titan\u2019s clouds and sent back pictures from the surface.'] },
+      miranda: { name: 'Miranda', type: 'The jumbled little moon of Uranus',
+        facts: ['Miranda looks like it was smashed and put back together — huge cliffs and zigzag canyons cover its tiny body.',
+                'One cliff there, Verona Rupes, is about 20 times taller than the tallest cliff on Earth.'] },
+      ariel:   { name: 'Ariel', type: 'The brightest moon of Uranus',
+        facts: ['Ariel is covered in bright ice cut by a web of dark canyons.',
+                'It is one of the five big round moons that orbit Uranus while it lies on its side.'] },
+      umbriel: { name: 'Umbriel', type: 'The dark moon of Uranus',
+        facts: ['Umbriel is the darkest of Uranus\u2019s big moons — its surface is ancient and covered in craters.',
+                'A bright ring-shaped patch near its north pole is a mysterious splash of fresh ice.'] },
+      titania: { name: 'Titania', type: 'The largest moon of Uranus',
+        facts: ['Titania is the biggest moon around Uranus, with giant canyons stretching across it.',
+                'Like all Uranian moons, it rides around the Sun tipped almost sideways together with its planet.'] },
+      oberon:  { name: 'Oberon', type: 'The outer big moon of Uranus',
+        facts: ['Oberon is the farthest of Uranus\u2019s five round moons — dark and pocked with old craters.',
+                'Astronomers found it by watching it move — the same trick used for most moons long before spacecraft.'] },
+      triton:  { name: 'Triton', type: 'Neptune\u2019s backwards moon',
+        facts: ['Triton orbits Neptune backwards — scientists think Neptune captured it from far-out space long ago.',
+                'It has icy volcanoes that spray geysers, and it is one of the coldest places ever measured.'] },
     },
   },
   de: {
@@ -541,6 +588,9 @@ const I18N = {
     infoHintTouch: 'Tippe in den leeren Raum, um das Folgen zu beenden. Ziehen zum Umschauen, Wischen zum Umrunden, Kneifen zum Zoomen, zwei Finger ziehen zum Fliegen.',
     closeInfo: 'Schließen',
     labelsShort: 'Aa',
+    // 3-state Labels button: full word per mode + a compact glyph for phones
+    labelModes: { off: 'Aus', planets: 'Planeten', all: 'Alle' },
+    labelShorts: { off: '🚫', planets: '🪐', all: '🌕' },
     texShort: '📷',
     scaleShort: '🔬',
     compareShort: '📏',
@@ -561,6 +611,7 @@ const I18N = {
       ['Leiste unten', 'Zeit anhalten oder schneller machen'],
       ['🗺 Orte', 'Liste aller Orte, zu denen du fliegen kannst — anklicken zum Hinfliegen'],
       ['📷 Fotos', 'Wechselt zwischen echten Planetenfotos und den eingebauten Zeichnungen (die offline funktionieren)'],
+      ['Aa Namen', 'Schaltet die Namensschilder um: Aus → Planeten → Alle (auch Monde)'],
       ['🌑 Finsternis', 'Startet eine Sonnenfinsternis über der Erde!'],
       ['🔬 Echte Größe', 'Zeigt jeden Planeten in seiner wahren Größe relativ zur Sonne — sie werden winzig!'],
       ['📏 Vergleich', 'Stellt alle 8 Planeten nebeneinander in ihrer echten relativen Größe auf, mit der Sonne darüber — so seht ihr, wie groß sie wirklich sind!'],
@@ -575,6 +626,7 @@ const I18N = {
       ['Leiste unten', 'Zeit anhalten oder schneller machen'],
       ['🗺 Orte', 'Liste aller Orte, zu denen du fliegen kannst — antippen zum Hinfliegen'],
       ['📷 Fotos', 'Wechselt zwischen echten Planetenfotos und den eingebauten Zeichnungen (die offline funktionieren)'],
+      ['Aa Namen', 'Schaltet die Namensschilder um: Aus → Planeten → Alle (auch Monde)'],
       ['🌑 Finsternis', 'Startet eine Sonnenfinsternis über der Erde!'],
       ['🔬 Echte Größe', 'Zeigt jeden Planeten in seiner wahren Größe relativ zur Sonne — sie werden winzig!'],
       ['📏 Vergleich', 'Stellt alle 8 Planeten nebeneinander in ihrer echten relativen Größe auf, mit der Sonne darüber — so seht ihr, wie groß sie wirklich sind!'],
@@ -628,6 +680,45 @@ const I18N = {
       belt:    { name: 'Hauptgürtel', type: 'Millionen Gesteinsreste',
         facts: ['Zwischen Mars und Jupiter schweben Millionen von Asteroiden — Reste aus der Zeit, als das Sonnensystem entstand.',
                 'Die starke Schwerkraft des Jupiter hat verhindert, dass sich diese Steine zu einem Planeten verbinden.'] },
+      io:      { name: 'Io', type: 'Jupiters Vulkanmond',
+        facts: ['Io ist der vulkanischste Ort im ganzen Sonnensystem — seine Vulkane schleudern Lava höher als Berge!',
+                'Das gelb-orange kommt vom Schwefel. Jupiters Schwerkraft knetet Io wie Teig durch und heizt ihn von innen auf.'] },
+      europa:  { name: 'Europa', type: 'Eismond mit einem Ozean darunter',
+        facts: ['Europa ist von einer Eisschale bedeckt, und darunter liegt ein tiefer Ozean — vielleicht mehr Wasser als alle Ozeane der Erde!',
+                'Forscher denken, dass in seiner dunklen Tiefe vielleicht kleines Alien-Leben leben könnte.'] },
+      ganymede:{ name: 'Ganymed', type: 'Der größte Mond des Sonnensystems',
+        facts: ['Ganymed ist größer als der Planet Merkur — der größte Mond von allen!',
+                'Er ist der einzige Mond, von dem wir wissen, dass er ein eigenes Magnetfeld hat.'] },
+      callisto:{ name: 'Kallisto', type: 'Ein dunkler, uralter, kraterbedeckter Mond',
+        facts: ['Kallisto ist einer der am stärksten verkraterten Monde — seine Oberfläche hat sich seit Milliarden von Jahren nicht verändert.',
+                'Er kreist weit weg vom Jupiter und entkommt darum viel von der Strahlung, die die anderen Monde trifft.'] },
+      enceladus:{ name: 'Enceladus', type: 'Saturns winziger Geysir-Mond',
+        facts: ['Enceladus sprüht echte Wasserfontänen aus seinem Südpol — Fontänen, die bis ins All reichen!',
+                'Seine Oberfläche ist die hellste im Sonnensystem: frisches, sauberes Eis, das fast alles Sonnenlicht zurückwirft.'] },
+      rhea:    { name: 'Rhea', type: 'Saturns zweitgrößter Mond',
+        facts: ['Rhea ist ein schmutziger Schneeball — meistens Eis mit etwas Gestein gemischt.',
+                'Sie kreist knapp außerhalb von Saturns Ringen zusammen mit Titan und den anderen großen Monden.'] },
+      titan:   { name: 'Titan', type: 'Saturnmond mit dicker Luft und Methanseen',
+        facts: ['Titan ist der einzige Mond mit einer dichten Atmosphäre, und seine Flüsse und Seen sind aus flüssigem Methan — Raketen-Treibstoff!',
+                'Die Sonde Huygens ist einmal durch Titans Wolken gefallen und hat Bilder vom Boden geschickt.'] },
+      miranda: { name: 'Miranda', type: 'Der zerwürfelte kleine Mond des Uranus',
+        facts: ['Miranda sieht aus, als wäre sie zertrümmert und wieder zusammengesetzt worden — riesige Klippen und Zickzack-Schluchten bedecken ihren kleinen Körper.',
+                'Eine Klippe dort, Verona Rupes, ist etwa 20 Mal so hoch wie die höchste Klippe der Erde.'] },
+      ariel:   { name: 'Ariel', type: 'Der hellste Mond des Uranus',
+        facts: ['Ariel ist mit hellem Eis bedeckt, das von einem Netz dunkler Schluchten durchzogen ist.',
+                'Er ist einer der fünf großen runden Monde, die um den Uranus kreisen, während er auf der Seite liegt.'] },
+      umbriel: { name: 'Umbriel', type: 'Der dunkle Mond des Uranus',
+        facts: ['Umbriel ist der dunkelste der großen Uranusmonde — seine Oberfläche ist uralt und voller Krater.',
+                'Ein heller ringförmiger Fleck nahe seinem Nordpol ist ein geheimnisvoller Spritzer aus frischem Eis.'] },
+      titania: { name: 'Titania', type: 'Der größte Mond des Uranus',
+        facts: ['Titania ist der größte Mond um den Uranus, mit riesigen Schluchten, die sich über ihn ziehen.',
+                'Wie alle Uranusmonde reist er fast auf der Seite liegend mit seinem Planeten um die Sonne.'] },
+      oberon:  { name: 'Oberon', type: 'Der äußere große Mond des Uranus',
+        facts: ['Oberon ist der entfernteste der fünf runden Uranusmonde — dunkel und voller alter Krater.',
+                'Astronomen fanden ihn, indem sie zusahen, wie er sich bewegt — derselbe Trick für die meisten Monde lange vor Raumfahrzeugen.'] },
+      triton:  { name: 'Triton', type: 'Der rückwärts laufende Mond des Neptun',
+        facts: ['Triton umkreist den Neptun rückwärts — Wissenschaftler glauben, dass der Neptun ihn vor langer Zeit aus der Ferne eingefangen hat.',
+                'Er hat Eisvulkane, die Geysire sprühen, und er ist einer der kältesten Orte, die je gemessen wurden.'] },
     },
   },
 };
@@ -876,6 +967,9 @@ const PHOTO_FILE = {
   earth: 'earth_day.jpg', mars: 'mars.jpg', jupiter: 'jupiter.jpg',
   saturn: 'saturn.jpg', uranus: 'uranus.jpg', neptune: 'neptune.jpg',
   moon: 'moon.jpg',
+  // the major moons that have a real photo bundled (the rest stay procedural)
+  io: 'io.jpg', europa: 'europa.jpg', ganymede: 'ganymede.jpg',
+  callisto: 'callisto.jpg', titan: 'titan.jpg', triton: 'triton.jpg',
   // Real NASA cloud photo (white on black) — used as the cloud layer's alpha map.
   earthClouds: 'earth_clouds.jpg',
   milkyway: 'milkyway.jpg',
@@ -944,7 +1038,8 @@ async function loadPhoto(key, q = quality) {
 
 // Swap one body's surface map between photo and procedural.
 function setBodyMap(key, usePhoto) {
-  const mesh = key === 'sun' ? sunMesh : key === 'moon' ? moonMesh : bodies[key].mesh;
+  const mesh = key === 'sun' ? sunMesh : key === 'moon' ? moonMesh
+    : moons[key] ? moons[key].mesh : bodies[key].mesh;
   const mat = mesh.material;
   const ptex = usePhoto ? photoTex[quality + ':' + key] : null;
   if (ptex) mat.map = ptex;
@@ -965,6 +1060,10 @@ const SUN_R = 7, MOON_R = 0.45, MOON_DIST = 3.2;
 const REAL_KM = {
   sun: 696340, mercury: 2439.7, venus: 6051.8, earth: 6371, moon: 1737.4,
   mars: 3389.5, jupiter: 69911, saturn: 58232, uranus: 25362, neptune: 24622,
+  io: 1821.6, europa: 1560.8, ganymede: 2634.1, callisto: 2410.3,
+  enceladus: 252.1, rhea: 763.8, titan: 2574.7,
+  miranda: 235.8, ariel: 578.9, umbriel: 584.7, titania: 788.4, oberon: 761.4,
+  triton: 1353.4,
 };
 const realSceneR = key => SUN_R * REAL_KM[key] / REAL_KM.sun;
 
@@ -1299,6 +1398,84 @@ const moonOrbitLine = makeOrbitLine(MOON_DIST, 0x8a93b8, moonOrbitGroup);
 // moon position formula (y = sin(ma)·D·sin(inc))
 moonOrbitLine.rotation.x = -MOON_INC;
 
+// --- the major moons of the other planets ------------------------------
+// The 13 biggest moons besides Earth's, each on a simple circular orbit
+// around its planet — same idea as the Moon above. Distances are chosen so
+// every moon sits clearly outside its planet (and outside Saturn's rings),
+// radii are ordered by real size: a friendly "not to scale" view.
+// period = orbital period in days; negative = retrograde (Triton orbits
+// backwards, the rebel of the moon world).
+const MOONS = [
+  { key: 'io',        parent: 'jupiter', r: 0.35, dist: 7.6,  period: 1.77,  phase: 0.9 },
+  { key: 'europa',    parent: 'jupiter', r: 0.31, dist: 9.3,  period: 3.55,  phase: 2.4 },
+  { key: 'ganymede',  parent: 'jupiter', r: 0.50, dist: 11.4, period: 7.15,  phase: 4.1 },
+  { key: 'callisto',  parent: 'jupiter', r: 0.46, dist: 13.9, period: 16.7,  phase: 5.6 },
+  { key: 'enceladus', parent: 'saturn',  r: 0.20, dist: 10.2, period: 1.37,  phase: 1.2 },
+  { key: 'rhea',      parent: 'saturn',  r: 0.28, dist: 11.9, period: 4.59,  phase: 3.3 },
+  { key: 'titan',     parent: 'saturn',  r: 0.50, dist: 14.6, period: 15.9,  phase: 5.0 },
+  { key: 'miranda',   parent: 'uranus',  r: 0.20, dist: 4.3,  period: 1.4,   phase: 0.4 },
+  { key: 'ariel',     parent: 'uranus',  r: 0.26, dist: 5.3,  period: 2.5,   phase: 2.0 },
+  { key: 'umbriel',   parent: 'uranus',  r: 0.26, dist: 6.3,  period: 4.1,   phase: 3.7 },
+  { key: 'titania',   parent: 'uranus',  r: 0.32, dist: 7.5,  period: 8.7,   phase: 5.2 },
+  { key: 'oberon',    parent: 'uranus',  r: 0.31, dist: 8.7,  period: 13.7,  phase: 0.1 },
+  { key: 'triton',    parent: 'neptune', r: 0.36, dist: 4.6,  period: -5.88, phase: 2.8 },
+];
+// every key that belongs to a moon (Earth's Moon included) — used by the
+// label modes, Compare mode and the real-size label offsets
+const MOON_KEYS = new Set(['moon', ...MOONS.map(m => m.key)]);
+
+const moons = {};          // key -> live record { mesh, sys, pos, label, ... }
+// One orbit-system group per parent planet: it follows the planet each frame,
+// so all its moons' orbits stay centred on it. Its rotation tips the whole
+// family into the planet's equatorial plane — Uranus rolls on its side (98°),
+// so its moons circle it sideways too!
+const moonSystems = {};
+function moonSystem(parentKey) {
+  let sys = moonSystems[parentKey];
+  if (!sys) {
+    sys = new THREE.Group();
+    const p = PLANETS.find(pl => pl.key === parentKey);
+    if (p && Math.abs(p.tilt) > 15) sys.rotation.z = THREE.MathUtils.degToRad(p.tilt);
+    scene.add(sys);
+    moonSystems[parentKey] = sys;
+  }
+  return sys;
+}
+// surface colours for the moons without a real photo (procedural fallback):
+// baseA/baseB tint pairs + crater count, roughly matching how each looks
+const MOON_PROC = {
+  io:        [[188, 148, 62], [226, 198, 122], 81, 130],   // sulphur-yellow, volcanically smeared
+  europa:    [[198, 188, 172], [234, 228, 216], 87, 36],   // bright icy shell, few craters
+  ganymede:  [[128, 120, 112], [186, 178, 168], 93, 300],  // grey-brown ice, mixed terrain
+  callisto:  [[94, 86, 78],   [150, 140, 128],  99, 430],  // the most cratered world known
+  enceladus: [[208, 212, 216], [244, 246, 249], 105, 26],  // sparkling white ice
+  rhea:      [[158, 156, 152], [210, 208, 204], 111, 380], // dirty icy grey
+  titan:     [[188, 138, 68],  [222, 180, 122], 117, 0],   // thick orange haze — smooth!
+  miranda:   [[138, 136, 134], [190, 188, 186], 123, 250], // jumbled icy cliff-world
+  ariel:     [[150, 150, 148], [202, 202, 200], 129, 300],
+  umbriel:   [[118, 116, 114], [168, 166, 164], 135, 350], // darkest Uranian moon
+  titania:   [[134, 127, 121], [185, 178, 170], 141, 300],
+  oberon:    [[124, 117, 111], [175, 168, 160], 147, 320],
+  triton:    [[190, 178, 172], [228, 220, 214], 153, 54],  // pinkish nitrogen ice
+};
+for (const mdef of MOONS) {
+  const sys = moonSystem(mdef.parent);
+  const [a, b, seed, craters] = MOON_PROC[mdef.key];
+  procMaps[mdef.key] = texCratered(a, b, seed, craters);
+  procMaps[mdef.key].anisotropy = maxAniso;
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(mdef.r, 32, 16),
+    new THREE.MeshStandardMaterial({ map: procMaps[mdef.key], roughness: 1 })
+  );
+  mesh.userData.bodyKey = mdef.key;
+  sys.add(mesh);
+  pickables.push(mesh);
+  makeOrbitLine(mdef.dist, 0x5a6488, sys);   // faint orbit ring around the planet
+  moons[mdef.key] = { ...mdef, mesh, sys, pos: new THREE.Vector3(), label: null };
+}
+// every body the camera can collide with / fly to (Sun, planets, all moons)
+const ALL_BODY_KEYS = ['sun', 'moon', ...PLANETS.map(p => p.key), ...MOONS.map(m => m.key)];
+
 // =====================================================================
 //  Analytic shadows (Moon on Earth, Saturn's rings on the planet & back)
 // =====================================================================
@@ -1309,11 +1486,16 @@ moonOrbitLine.rotation.x = -MOON_INC;
 // The Sun's angular radius as seen from a body at distance d (drives penumbra width)
 const sunAngularR = d => Math.asin(SUN_R / d);
 
+// How many occluder spheres one surface can be shadowed by at once. The
+// largest moon family shown here is Uranus with 5 — plus one spare slot.
+const MAX_OCC = 6;
+
 function analyticShadowGLSL({ moon, ring }) {
   const parts = [];
   if (moon) parts.push(`
-uniform vec3 uOccPos;       // occluder sphere centre, world space
-uniform float uOccR;        // occluder sphere radius`);
+#define MAX_OCC ${MAX_OCC}
+uniform vec3 uOccPos[MAX_OCC];    // occluder sphere centres, world space
+uniform float uOccR[MAX_OCC];     // occluder sphere radii (0 = slot unused)`);
   if (ring) parts.push(`
 uniform vec3 uRingCenter;   // ring-plane centre, world space
 uniform vec3 uRingNormal;   // ring-plane normal, world space
@@ -1326,18 +1508,25 @@ uniform float uSunAng;      // Sun's angular radius as seen from this body
 // occluder (angular radius beta) are two discs on the sky as seen from the
 // surface point; their overlap gives umbra / penumbra / full light.
 float softSphere( vec3 ro, vec3 rd, vec3 c, float r ) {
+  if ( r <= 0.0 ) return 1.0;                                 // unused occluder slot
   vec3 v = c - ro;
   float d = length( v );
-  float beta  = asin( clamp( r / d, 0.0, 1.0 ) );            // occluder disc radius
+  float beta  = asin( clamp( r / d, 0.0, 1.0 ) );             // occluder disc radius
   float alpha = acos( clamp( dot( rd, v / d ), -1.0, 1.0 ) ); // centre offset from Sun dir
-  if ( alpha >= beta + uSunAng ) return 1.0;                 // discs don't overlap
-  if ( alpha <= beta - uSunAng ) return 0.0;                 // Sun fully covered: umbra
-  if ( alpha <= uSunAng - beta ) {                           // occluder inside Sun disc
-    float k = beta / uSunAng;
-    return 1.0 - k * k;                                      // ~area ratio
+  if ( alpha >= beta + uSunAng ) return 1.0;                  // discs don't overlap
+  if ( beta >= uSunAng ) {                                    // occluder at least as big as the Sun: real umbra
+    if ( alpha <= beta - uSunAng ) return 0.0;                // Sun fully covered: umbra
+    float x = ( alpha - ( beta - uSunAng ) ) / ( 2.0 * uSunAng );
+    return clamp( x, 0.0, 1.0 );                              // penumbra ramp
   }
-  float x = ( alpha - abs( beta - uSunAng ) ) / ( 2.0 * min( beta, uSunAng ) );
-  return clamp( x, 0.0, 1.0 );                               // penumbra ramp
+  // Occluder SMALLER than the Sun (a moon in front of the huge Sun disc): it
+  // never fully covers the Sun, so there is no umbra — only a transit dimming
+  // of ~the area ratio k², fading out smoothly over the penumbra. (Ramping to
+  // 0 here instead would draw a thin black ring where the discs touch.)
+  float k = beta / uSunAng;
+  if ( alpha <= uSunAng - beta ) return 1.0 - k * k;          // transit: area-ratio dimming
+  float x = ( alpha - ( uSunAng - beta ) ) / ( 2.0 * beta );
+  return clamp( ( 1.0 - k * k ) + k * k * x, 0.0, 1.0 );      // ramp back to full light
 }
 `);
   if (ring) parts.push(`
@@ -1362,16 +1551,22 @@ float analyticShadowFactor( vec3 worldPos, vec3 worldNormal ) {
   vec3 rd = normalize( -worldPos );            // toward the Sun (at the origin)
   vec3 ro = worldPos + worldNormal * 0.02;     // lift off the surface: no self-shadow
   float f = 1.0;
-${moon ? '  f *= softSphere( ro, rd, uOccPos, uOccR );\n' : ''}${ring ? '  f *= softRing( ro, rd );\n' : ''}  return f;
+${moon ? '  for ( int i = 0; i < MAX_OCC; i++ ) f *= softSphere( ro, rd, uOccPos[ i ], uOccR[ i ] );\n' : ''}${ring ? '  f *= softRing( ro, rd );\n' : ''}  return f;
 }
 `);
   return parts.join('');
 }
 
+// every material carrying analytic-shadow uniforms (setAnalyticShadows toggles them all)
+const analyticMats = [];
+
 function applyAnalyticShadow(mat, opts) {
+  const occPos = Array.from({ length: MAX_OCC }, () => new THREE.Vector3());
+  const occR = new Array(MAX_OCC).fill(0);
+  if (opts.occR) occR[0] = opts.occR;   // convenience: the first occluder's radius
   const uniforms = {
-    uOccPos: { value: new THREE.Vector3() },
-    uOccR: { value: opts.occR || 0 },
+    uOccPos: { value: occPos },
+    uOccR: { value: occR },
     uRingCenter: { value: new THREE.Vector3() },
     uRingNormal: { value: new THREE.Vector3(0, 1, 0) },
     uRingRadii: { value: new THREE.Vector2(SATURN_RING.inner, SATURN_RING.outer) },
@@ -1380,6 +1575,7 @@ function applyAnalyticShadow(mat, opts) {
     uShadowOn: { value: 1 },   // 0 in Compare mode (the Sun is not at the origin there)
   };
   mat.userData.analyticUniforms = uniforms;   // kept for the per-frame updates
+  analyticMats.push(mat);                     // so Compare mode can switch them all off
   mat.onBeforeCompile = shader => {
     Object.assign(shader.uniforms, uniforms);
     // world-space position AND normal (the built-in worldPosition varying is
@@ -1409,10 +1605,26 @@ applyAnalyticShadow(bodies.earth.mesh.material, { moon: true, occR: MOON_R, angR
 if (bodies.earth.clouds) applyAnalyticShadow(bodies.earth.clouds.material, { moon: true, occR: MOON_R, angR: sunAngularR(55) });
 // Moon: receives Earth's shadow (lunar eclipses) — same sphere test, swapped roles
 applyAnalyticShadow(moonMesh.material, { moon: true, occR: bodies.earth.radius, angR: sunAngularR(55) });
-// Saturn: receives the rings' shadow on its globe
-if (bodies.saturn) applyAnalyticShadow(bodies.saturn.mesh.material, { ring: true, angR: sunAngularR(140) });
+// Saturn: receives the rings' shadow AND its moons' shadows on its globe
+if (bodies.saturn) applyAnalyticShadow(bodies.saturn.mesh.material, { ring: true, moon: true, angR: sunAngularR(140) });
 // The rings themselves: receive Saturn's shadow (the planet blocks the Sun)
 if (saturnRings) applyAnalyticShadow(saturnRings.material, { moon: true, occR: bodies.saturn.radius, angR: sunAngularR(140) });
+
+// --- major moons cast shadows on their parent planet -------------------
+// Every planet with a moon family gets the sphere-occluder treatment too:
+// one slot per moon in its family (Jupiter 4, Saturn 3, Uranus 5, Neptune 1).
+// The per-frame update below keeps the slot positions fresh; radii are set
+// here and adjusted by real-size mode.
+const MOON_FAMILY = {};   // parent key -> [moon records]
+for (const mk in moons) (MOON_FAMILY[moons[mk].parent] ||= []).push(moons[mk]);
+for (const pk in MOON_FAMILY) {
+  const mat = bodies[pk].mesh.material;
+  if (!mat.userData.analyticUniforms) applyAnalyticShadow(mat, { moon: true, angR: sunAngularR(bodies[pk].dist) });
+  MOON_FAMILY[pk].forEach((m, i) => {
+    m.occMat = mat; m.occSlot = i;
+    mat.userData.analyticUniforms.uOccR.value[i] = m.r;
+  });
+}
 
 // Per-frame uniform updates (called from animate())
 const _asQuat = new THREE.Quaternion();
@@ -1422,13 +1634,18 @@ function updateAnalyticShadows() {
   const earthP = bodies.earth.group.position;
   // Earth sees the Moon's shadow (solar eclipses); the Moon sees Earth's (lunar eclipses)
   for (const m of [bodies.earth.mesh.material, bodies.earth.clouds && bodies.earth.clouds.material]) {
-    if (m) m.userData.analyticUniforms.uOccPos.value.copy(moonPos);
+    if (m) m.userData.analyticUniforms.uOccPos.value[0].copy(moonPos);
   }
-  moonMesh.material.userData.analyticUniforms.uOccPos.value.copy(earthP);
+  moonMesh.material.userData.analyticUniforms.uOccPos.value[0].copy(earthP);
+  // the major moons shadow their parent planets (transit shadows)
+  for (const mk in moons) {
+    const m = moons[mk];
+    if (m.occMat) m.occMat.userData.analyticUniforms.uOccPos.value[m.occSlot].copy(m.pos);
+  }
   if (saturnRings) {
     const s = bodies.saturn;
     // the rings see Saturn's shadow
-    saturnRings.material.userData.analyticUniforms.uOccPos.value.copy(s.group.position);
+    saturnRings.material.userData.analyticUniforms.uOccPos.value[0].copy(s.group.position);
     s.tiltG.getWorldPosition(ringCenterV);
     ringNormalV.set(0, 1, 0).applyQuaternion(s.tiltG.getWorldQuaternion(_asQuat));
     for (const m of [s.mesh.material, saturnRings.material]) {
@@ -1443,9 +1660,7 @@ function updateAnalyticShadows() {
 // at the origin, so they are switched OFF in Compare mode — there the PointLight
 // already gives a correct day/night terminator from the Sun's real position.
 function setAnalyticShadows(on) {
-  const mats = [bodies.earth.mesh.material, bodies.earth.clouds && bodies.earth.clouds.material,
-    moonMesh.material, bodies.saturn.mesh.material, saturnRings && saturnRings.material];
-  for (const m of mats) if (m && m.userData.analyticUniforms) m.userData.analyticUniforms.uShadowOn.value = on ? 1 : 0;
+  for (const m of analyticMats) m.userData.analyticUniforms.uShadowOn.value = on ? 1 : 0;
 }
 
 // =====================================================================
@@ -1471,6 +1686,14 @@ function applyRealScale(on) {
     }
   }
   moonMesh.scale.setScalar(on ? realSceneR('moon') / MOON_R : 1);
+  // the major moons shrink too (relative to the same Sun reference) — and
+  // their shadow-occluder radii on the parent planet must follow
+  for (const mk in moons) {
+    const m = moons[mk];
+    const rr = on ? Math.max(realSceneR(mk), 0.06) : m.r;
+    m.mesh.scale.setScalar(rr / m.r);
+    if (m.occMat) m.occMat.userData.analyticUniforms.uOccR.value[m.occSlot] = rr;
+  }
 
   // Occluder radii used by the analytic shadows (Moon on Earth, Earth on Moon,
   // Saturn on its rings) must match the scaled sizes.
@@ -1478,10 +1701,10 @@ function applyRealScale(on) {
   const earthOccR  = on ? realSceneR('earth')  : bodies.earth.radius;
   const saturnOccR = on ? realSceneR('saturn') : bodies.saturn.radius;
   for (const m of [bodies.earth.mesh.material, bodies.earth.clouds && bodies.earth.clouds.material]) {
-    if (m) m.userData.analyticUniforms.uOccR.value = moonOccR;
+    if (m) m.userData.analyticUniforms.uOccR.value[0] = moonOccR;
   }
-  moonMesh.material.userData.analyticUniforms.uOccR.value = earthOccR;
-  if (saturnRings) saturnRings.material.userData.analyticUniforms.uOccR.value = saturnOccR;
+  moonMesh.material.userData.analyticUniforms.uOccR.value[0] = earthOccR;
+  if (saturnRings) saturnRings.material.userData.analyticUniforms.uOccR.value[0] = saturnOccR;
 
   // keep the name labels hugging the (now smaller) bodies instead of floating
   // far above them at their old display-size offsets
@@ -1489,8 +1712,10 @@ function applyRealScale(on) {
     const k = ls.key;
     if (k === 'belt') continue;                 // fixed point on the belt ring
     if (k === 'sun') { ls.sp.position.y = SUN_R + 3.5; continue; }   // sun is the reference, unchanged
-    const r = on ? Math.max(realSceneR(k), 0.15) : (k === 'moon' ? MOON_R : bodies[k].radius);
-    const gap = on ? Math.max(0.5, r * 0.6) : (k === 'moon' ? 0.9 : Math.max(1.2, r * 0.5));
+    // moon labels track their body in updatePositions() — skip them here
+    if (MOON_KEYS.has(k)) continue;
+    const r = on ? Math.max(realSceneR(k), 0.15) : bodies[k].radius;
+    const gap = on ? Math.max(0.5, r * 0.6) : Math.max(1.2, r * 0.5);
     ls.sp.position.y = r + gap;
   }
 }
@@ -1574,14 +1799,14 @@ function layoutCompare() {
 
   // analytic-shadow occluder radii must match the displayed sizes
   for (const m of [bodies.earth.mesh.material, bodies.earth.clouds && bodies.earth.clouds.material])
-    if (m) m.userData.analyticUniforms.uOccR.value = moonCmpR;
-  moonMesh.material.userData.analyticUniforms.uOccR.value = cmpR('earth');
-  if (saturnRings) saturnRings.material.userData.analyticUniforms.uOccR.value = cmpR('saturn');
+    if (m) m.userData.analyticUniforms.uOccR.value[0] = moonCmpR;
+  moonMesh.material.userData.analyticUniforms.uOccR.value[0] = cmpR('earth');
+  if (saturnRings) saturnRings.material.userData.analyticUniforms.uOccR.value[0] = cmpR('saturn');
 
   // Name labels: one neat horizontal line above the row — same height for all,
   // and the spacing above guarantees adjacent labels never touch or overlap
   for (const ls of labelSprites) {
-    if (ls.key === 'belt' || ls.key === 'moon') continue;   // handled above / fixed point
+    if (ls.key === 'belt' || MOON_KEYS.has(ls.key)) continue;   // handled above / hidden in Compare
     if (ls.key === 'sun') { ls.sp.position.set(0, COMPARE_SUN_Y - CMP_SUN_R + 4, 0); continue; }
     ls.sp.position.y = CMP_LABEL_Y;
   }
@@ -1593,7 +1818,10 @@ function setCompareMode(on) {
   belt.visible = !on;
   beltDust.visible = !on;
   moonOrbitGroup.visible = !on;
-  if (beltLabel) beltLabel.visible = !on && $('labelsBtn').classList.contains('active');
+  // the major moons belong to their planets' orbits — not to the size-comparison row
+  for (const pk in moonSystems) moonSystems[pk].visible = !on;
+  for (const mk in moons) moons[mk].mesh.visible = !on;
+  applyLabelMode();
   setAnalyticShadows(!on);         // off in Compare mode (Sun is not at the origin there)
   if (on) {
     layoutCompare();
@@ -1688,6 +1916,8 @@ for (const p of PLANETS) addLabel(p.key, bodies[p.key].group, p.r + Math.max(1.2
 // Moon label lives in the scene (not on moonMesh) so real-size scaling of the
 // mesh can't shrink it; its position is tracked in updatePositions().
 const moonLabel = addLabel('moon', scene, MOON_R + 0.9);
+// Same trick for the major moons: scene-parented labels that track each moon.
+for (const mk in moons) moons[mk].label = addLabel(mk, scene, 0);
 { // belt label at a fixed point on the ring
   const sp = makeLabelSprite(t().bodies.belt.name);
   sp.position.set((BELT_INNER + BELT_OUTER) / 2, 2.5, 0);
@@ -1758,6 +1988,27 @@ function updatePositions() {
     moonMesh.rotation.y = (simDays / 27.32) * Math.PI * 2;
   }
 
+  // --- major moons: circular orbits around their planet -------------------
+  if (!compareMode) {
+    for (const mk in moons) {
+      const m = moons[mk];
+      const par = bodies[m.parent].group.position;
+      m.sys.position.copy(par);
+      // orbit angle from the real orbital period (negative period = retrograde)
+      const a = (simDays / m.period) * TWO_PI + m.phase;
+      const lx = Math.cos(a) * m.dist, lz = Math.sin(a) * m.dist;
+      m.mesh.position.set(lx, 0, lz);
+      // world position for camera-follow, picking & collision
+      m.pos.copy(m.sys.position).add(
+        new THREE.Vector3(lx, 0, lz).applyQuaternion(m.sys.quaternion));
+      // tidally locked: same face toward the planet (texture u=0.5 sits on local +X)
+      m.mesh.rotation.y = Math.atan2(lz, -lx);
+      // scene-parented label hugging the (possibly real-size-scaled) moon
+      const mr = realScale ? Math.max(realSceneR(mk), 0.12) : m.r;
+      m.label.position.set(m.pos.x, m.pos.y + mr + (realScale ? 0.45 : 0.8), m.pos.z);
+    }
+  }
+
   const beltRot = (simDays / 1600) * Math.PI * 2;
   belt.rotation.y = beltRot;
   beltDust.rotation.y = beltRot;   // dust shares the main belt's orbit
@@ -1781,6 +2032,7 @@ function bodyWorldPos(key) {
   if (key === 'moon') return moonPos.clone();
   // the Asteroid Belt "place": a fixed point inside the band (the rocks drift past it)
   if (key === 'belt') return new THREE.Vector3((BELT_INNER + BELT_OUTER) / 2, 0, 0);
+  if (moons[key]) return moons[key].pos.clone();
   return bodies[key].group.position.clone();
 }
 function bodyRadius(key) {
@@ -1788,6 +2040,7 @@ function bodyRadius(key) {
   let r;
   if (key === 'sun') r = SUN_R;
   else if (key === 'moon') r = MOON_R;
+  else if (moons[key]) r = moons[key].r;
   else r = bodies[key].radius;
   if (compareMode) {
     // true size relative to the other planets — and the Sun at its TRUE scale too
@@ -1801,8 +2054,8 @@ function bodyRadius(key) {
 }
 
 function startFlightTo(key) {
-  // the belt only exists on the real orbits — leave Compare mode first
-  if (key === 'belt' && compareMode) { setCompareMode(false); refreshCompareBtn(); }
+  // the belt & the orbiting moons only exist on the real orbits — leave Compare mode first
+  if ((key === 'belt' || moons[key]) && compareMode) { setCompareMode(false); refreshCompareBtn(); }
   flight = { from: camera.position.clone(), t: 0, dur: 1.6, key };
   followKey = null;
   spinTheta = 0; spinPhi = 0;   // no leftover orbit inertia for the next body
@@ -1868,7 +2121,8 @@ function updateCamera(dt) {
     // the ALREADY-copied position, which collapsed the direction to zero and
     // teleported the camera to the body's exact centre every frame (stuck: any
     // WASD step smaller than the radius got snapped straight back).
-    for (const pk of ['sun', 'moon', ...PLANETS.map(p => p.key)]) {
+    for (const pk of ALL_BODY_KEYS) {
+      if (compareMode && moons[pk]) continue;   // hidden in Compare — stale positions
       const c = bodyWorldPos(pk), r = bodyRadius(pk) * 1.08;
       const off = camera.position.clone().sub(c);
       const d = off.length();
@@ -2192,7 +2446,7 @@ function applyLang() {
   $('uiTitle').textContent = L.title;
   $('uiSubtitle').textContent = L.subtitle;
   $('loadingText').textContent = L.loading;
-  $('labelsBtn').textContent = L.labels;
+  refreshLabelsBtn();
   $('placesBtn').textContent = L.places;
   $('placesTitle').textContent = L.placesTitle;
   buildPlaces();
@@ -2203,7 +2457,7 @@ function applyLang() {
   $('scaleBtn').textContent = L.scaleBtn;
   $('compareBtn').textContent = L.compareBtn;
   // short (emoji-only) labels shown on small screens via CSS ::after
-  $('labelsBtn').dataset.short = L.labelsShort;
+  refreshLabelsBtn();   // re-applies the mode glyph for the new language
   $('texBtn').dataset.short = L.texShort;
   $('scaleBtn').dataset.short = L.scaleShort;
   $('compareBtn').dataset.short = L.compareShort;
@@ -2245,11 +2499,38 @@ $('helpModal').addEventListener('click', e => { if (e.target === $('helpModal'))
 // To stop following: tap empty space, fly to another place, or press ⌂ Home.
 $('infoClose').onclick = () => { hideInfo(); };
 $('langBtn').onclick = () => { lang = lang === 'en' ? 'de' : 'en'; localStorage.setItem('ssx_lang', lang); applyLang(); };
+// --- Labels: three states --------------------------------------------
+// off → Planets (Sun + planets + belt, no moons) → All (moons too).
+// Remembered across visits; unknown/legacy values fall back to 'planets'.
+let labelMode = localStorage.getItem('ssx_labels');
+if (labelMode !== 'off' && labelMode !== 'planets' && labelMode !== 'all') labelMode = 'planets';
+const LABEL_CYCLE = ['off', 'planets', 'all'];
+
+function applyLabelMode() {
+  for (const ls of labelSprites) {
+    const k = ls.key;
+    if (labelMode === 'off') { ls.sp.visible = false; continue; }
+    if (MOON_KEYS.has(k)) {
+      // "Planets" mode shows no moons at all; Earth's Moon keeps its label in
+      // Compare mode too (it is parked with Earth), the others vanish there.
+      ls.sp.visible = labelMode === 'all' && (k === 'moon' || !compareMode);
+      continue;
+    }
+    if (k === 'belt') { ls.sp.visible = !compareMode; continue; }   // belt hidden in Compare
+    ls.sp.visible = true;                                           // sun + planets
+  }
+}
+function refreshLabelsBtn() {
+  const L = t();
+  $('labelsBtn').textContent = `${L.labels}: ${L.labelModes[labelMode]}`;
+  $('labelsBtn').dataset.short = L.labelShorts[labelMode];
+  $('labelsBtn').classList.toggle('active', labelMode !== 'off');
+}
 $('labelsBtn').onclick = () => {
-  const on = !$('labelsBtn').classList.contains('active');
-  $('labelsBtn').classList.toggle('active', on);
-  for (const ls of labelSprites) ls.sp.visible = on;
-  if (beltLabel && compareMode) beltLabel.visible = false;   // the belt is hidden in Compare mode
+  labelMode = LABEL_CYCLE[(LABEL_CYCLE.indexOf(labelMode) + 1) % LABEL_CYCLE.length];
+  localStorage.setItem('ssx_labels', labelMode);
+  refreshLabelsBtn();
+  applyLabelMode();
 };
 
 // --- real-size mode: true-to-scale planet radii (off by default) --------
@@ -2280,13 +2561,16 @@ $('compareBtn').onclick = () => {
 // --- places list: every clickable body, one click to fly there ---------
 // 'belt' is not a pickable mesh — it is a fixed spot inside the band you can
 // only reach from this list (its info text was otherwise unreachable).
-const PLACE_ORDER = ['sun','mercury','venus','earth','moon','mars','belt','jupiter','saturn','uranus','neptune'];
+// each major moon sits right behind its planet in the list
+const PLACE_ORDER = ['sun','mercury','venus','earth','moon','mars','belt','jupiter',
+  'io','europa','ganymede','callisto','saturn','enceladus','rhea','titan',
+  'uranus','miranda','ariel','umbriel','titania','oberon','neptune','triton'];
 function buildPlaces() {
   const list = $('placesList');
   list.innerHTML = '';
   for (const key of PLACE_ORDER) {
     const b = document.createElement('button');
-    b.className = 'placeBtn';
+    b.className = 'placeBtn' + (MOON_KEYS.has(key) ? ' moon' : '');
     b.dataset.key = key;
     b.textContent = t().bodies[key].name;
     b.onclick = () => {
@@ -2315,7 +2599,10 @@ $('placesBtn').onclick = () => {
 };
 
 // --- image quality: low (procedural) / medium / high ------------------
-const TEX_KEYS = ['sun', 'moon', ...PLANETS.map(p => p.key)];
+// the moons that actually have a real photo (see PHOTO_FILE) — the rest
+// keep their procedural textures at every quality tier
+const PHOTO_MOON_KEYS = ['io', 'europa', 'ganymede', 'callisto', 'titan', 'triton'];
+const TEX_KEYS = ['sun', 'moon', ...PLANETS.map(p => p.key), ...PHOTO_MOON_KEYS];
 // Photo textures still missing for a given quality (cloud layer included).
 function pendingPhotoKeys(q) {
   const keys = TEX_KEYS.filter(k => !photoTex[q + ':' + k]);
@@ -2579,7 +2866,8 @@ function animate(now) {
 
 // Debug helper (used by automated tests): screen-space position of a body
 window.__ssx = {
-  keys: ['sun', 'mercury', 'venus', 'earth', 'mars', 'belt', 'jupiter', 'saturn', 'uranus', 'neptune', 'moon'],
+  keys: ['sun', 'mercury', 'venus', 'earth', 'mars', 'belt', 'jupiter', 'saturn', 'uranus', 'neptune',
+    'moon', ...MOONS.map(m => m.key)],
   screenPos(key) {
     const v = bodyWorldPos(key).clone().project(camera);
     return { x: (v.x * 0.5 + 0.5) * innerWidth, y: (-v.y * 0.5 + 0.5) * innerHeight, behind: v.z > 1 };
@@ -2593,6 +2881,17 @@ window.__ssx = {
   },
   camPos: () => camera.position.toArray(),
   bodyWorld: (key) => bodyWorldPos(key).toArray(),
+  // test hooks: jump the simulation clock & teleport the camera (free flight,
+  // looking at `look` from `pos`) — used to stage e.g. a moon-transit shadow
+  setSimDays(d) { simDays = d; },
+  debugCam(pos, look) {
+    followKey = null; flight = null; spinTheta = 0; spinPhi = 0;
+    camera.position.set(pos[0], pos[1], pos[2]);
+    camera.lookAt(look[0], look[1], look[2]);
+    yawPitch.yaw = camera.rotation.y;
+    yawPitch.pitch = clamp(camera.rotation.x, -1.55, 1.55);
+    camera.rotation.set(yawPitch.pitch, yawPitch.yaw, 0);
+  },
   // loaded photo textures and their GPU pixel sizes (memory checks / tests)
   texSizes: () => Object.fromEntries(
     Object.entries(photoTex).map(([k, tx]) => [k, [tx.image.naturalWidth || tx.image.width, tx.image.naturalHeight || tx.image.height]])),
