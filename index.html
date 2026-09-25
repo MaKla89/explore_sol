@@ -946,6 +946,24 @@ function makeGlowTexture() {
   return new THREE.CanvasTexture(cv);
 }
 
+// Convective granulation for the sun shader: a small seamless noise tile that
+// drifts across the surface in the fragment shader (one extra texture sample
+// per pixel on the sun disc — no CPU work, no second mesh). The pattern is
+// deliberately low-contrast; it reads as a slow shimmer over the base map.
+function makeSunGranulationTexture() {
+  const N = makeNoise(777);
+  const w = 512, h = 256;
+  const cv = makeTexture(w, h, (u, v) => {
+    const [nx, ny, nz] = cylPoint(u, v, 3.0);
+    const g = N.fbm(nx * 2.4 + 40, ny * 2.4 + 17, nz * 2.4 + 8, 4);
+    return lerpC([216, 150, 96], [255, 238, 196], clamp(g * 1.25 - 0.12, 0, 1));
+  });
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;   // the shader drifts u past 1
+  return tex;
+}
+
 // =====================================================================
 //  Photo textures (bundled in textures/ — offline when served over http)
 //  Real planet photos in three quality levels, chosen in the 📷 menu:
@@ -1420,7 +1438,44 @@ scene.add(sunMesh);
 const glow = new THREE.Sprite(new THREE.SpriteMaterial({
   map: makeGlowTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
 glow.scale.setScalar(SUN_R * 5.2);
+let glowBaseScale = SUN_R * 5.2;   // breathing pulse in animate() scales around this
 scene.add(glow);
+
+// --- living sun surface (cheap: one extra texture sample per pixel) ------
+// The photos are single frames, so the disc looks frozen. Two real effects:
+//  * rigid rotation — the photo spins as a whole at the equatorial rate
+//    (~25.4 d/turn), done by rotating the MESH in animate(). Rotating UVs
+//    instead would smear the real features into latitude bands once the
+//    offset accumulates over time (and clamps out of [0,1]);
+//  * differential rotation + convective granulation — a small noise tile
+//    drifts across the surface at a latitude-dependent rate (equator ~25.4 d,
+//    poles ~35 d) plus a little extra, so it shimmers like boiling water.
+//    Only this procedural layer is sheared (sheared noise still looks like
+//    noise), and fract() keeps every UV in [0,1) so precision never degrades.
+// Both run on their own capped clock (see sunAnimDays), so even at high sim
+// speed the motion stays smooth instead of strobing past the texture.
+const SUN_ROT_EQUATOR_DAYS = 25.38, SUN_ROT_POLAR_DAYS = 35.0;
+const granTex = makeSunGranulationTexture();
+const sunUniforms = {
+  uSunTime: { value: 0 },   // in days (capped animation clock)
+  uGran:    { value: granTex },
+};
+sunMesh.material.onBeforeCompile = shader => {
+  Object.assign(shader.uniforms, sunUniforms);
+  // onBeforeCompile runs BEFORE the #include chunks are expanded, so anchor
+  // on the literal include tokens (same trick as applyAnalyticShadow).
+  // Uniforms must be declared at GLOBAL scope — `#include <common>` sits
+  // before main(); anything inside main() is a local variable.
+  shader.fragmentShader = shader.fragmentShader
+    .replace('#include <common>', '#include <common>\nuniform float uSunTime;\nuniform sampler2D uGran;')
+    .replace(
+      '#include <map_fragment>',
+      `#include <map_fragment>\n` +
+      `float sunLat = abs( vMapUv.y - 0.5 ) * 2.0;\n` +
+      `vec2 gUv = vec2( fract( vMapUv.x + uSunTime * ( mix( ${(1 / SUN_ROT_EQUATOR_DAYS).toFixed(4)}, ${(1 / SUN_ROT_POLAR_DAYS).toFixed(4)}, sunLat ) + 0.013 ) ), vMapUv.y );\n` +
+      `diffuseColor.rgb *= mix( vec3( 1.0 ), texture2D( uGran, gUv ).rgb, 0.38 );`);
+};
+sunMesh.material.customProgramCacheKey = () => 'sun-live';
 
 // --- planets ----------------------------------------------------------
 const bodies = {};   // key -> { group, tiltG, mesh, radius, ... }
@@ -1955,7 +2010,8 @@ function layoutCompare() {
   // planets (~10× Jupiter), so kids see just how vast it is. Only its lower limb
   // fits on screen, like a giant rising sun.
   sunMesh.scale.setScalar(CMP_SUN_R / SUN_R);
-  glow.scale.setScalar(CMP_SUN_R * 3);     // corona hugging the limb (5.2× would wash out the row)
+  glowBaseScale = CMP_SUN_R * 3;           // corona hugging the limb (5.2× would wash out the row)
+  glow.scale.setScalar(glowBaseScale);
   sunMesh.position.set(0, COMPARE_SUN_Y, 0);
   glow.position.copy(sunMesh.position);
   sunLight.position.copy(sunMesh.position);
@@ -1998,7 +2054,8 @@ function setCompareMode(on) {
     applyRealScale(realScale);     // restore sizes + shadow uniforms for the user's size mode
     updatePositions();             // send everything back to its orbit
     sunMesh.scale.setScalar(1);
-    glow.scale.setScalar(SUN_R * 5.2);
+    glowBaseScale = SUN_R * 5.2;
+    glow.scale.setScalar(glowBaseScale);
     sunMesh.position.set(0, 0, 0);
     glow.position.set(0, 0, 0);
     sunLight.position.set(0, 0, 0);
@@ -2114,6 +2171,11 @@ scene.add(penumbraCone);
 // =====================================================================
 let simDays = 0;
 let daysPerSecond = 0.02;
+// The sun's surface motion (differential rotation + granulation) runs on its
+// own clock, capped at a gentle rate: at high sim speed the planets may race,
+// but the photosphere should still shimmer smoothly instead of strobing.
+let sunAnimDays = 0;
+const SUN_ANIM_CAP_DPS = 0.5;   // days of surface motion per real second
 let paused = false;
 let eclipseMode = false;
 let savedDps = 0.02;
@@ -2958,6 +3020,16 @@ function animate(now) {
   updateAnalyticShadows();
   updateEclipseCones();
 
+  // living sun: advance the capped surface clock, spin the photo rigidly at
+  // the equatorial rate, breathe the corona glow
+  if (!paused) sunAnimDays += Math.min(daysPerSecond, SUN_ANIM_CAP_DPS) * dt;
+  sunUniforms.uSunTime.value = sunAnimDays;
+  sunMesh.rotation.y = (sunAnimDays / SUN_ROT_EQUATOR_DAYS % 1) * Math.PI * 2;
+  const gPulse = 1 + 0.035 * Math.sin(sunAnimDays * 2.4);
+  glow.scale.setScalar(glowBaseScale * gPulse);
+  const b = 0.965 + 0.035 * Math.sin(sunAnimDays * 1.7 + 1.3);
+  sunMesh.material.color.setRGB(b, b, b);
+
   // special flight targets (eclipse view / home)
   if (flight && flight.key === '__eclipseView') {
     flight.t += dt / flight.dur;
@@ -3053,6 +3125,7 @@ window.__ssx = {
   // test hooks: jump the simulation clock & teleport the camera (free flight,
   // looking at `look` from `pos`) — used to stage e.g. a moon-transit shadow
   setSimDays(d) { simDays = d; },
+  setSunDays(d) { sunAnimDays = d; },   // jump the sun's surface clock (tests)
   debugCam(pos, look) {
     followKey = null; flight = null; spinTheta = 0; spinPhi = 0;
     camera.position.set(pos[0], pos[1], pos[2]);
