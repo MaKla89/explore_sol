@@ -1064,6 +1064,14 @@ function setBodyMap(key, usePhoto) {
   if (ptex) mat.map = ptex;
   else mat.map = procMaps[key];
   mat.needsUpdate = true;
+  // The sun's shell layer wears the same map — swap it too, with a fresh
+  // alpha mask derived from the new image.
+  if (key === 'sun') {
+    const sm = sunShell.material;
+    sm.map = mat.map;
+    sm.alphaMap = makeSunAlphaMask(mat.map);
+    sm.needsUpdate = true;
+  }
 }
 
 // =====================================================================
@@ -1428,12 +1436,60 @@ async function ensureSky(q) {
 // --- sun --------------------------------------------------------------
 const procMaps = {}; // key -> procedural surface texture (fallback / toggle)
 procMaps.sun = makeProcTexture('sun', {}, 1024, 512, [255, 178, 64]);
+
+// Alpha mask for the sun's shell layer: the BRIGHT parts of a sun map become
+// opaque, the dark parts transparent (luminance^1.7 keeps only the hot spots).
+// Same trick as Earth's cloud photo (white-on-black alpha map), but derived
+// from whatever map the sun currently wears — procedural or photo. Rendered
+// at 1024×512: it is a soft blob mask, so the downscale is invisible and the
+// per-pixel loop stays cheap even for 4K photos.
+const sunMasks = {};   // texture -> alpha-mask texture
+function makeSunAlphaMask(tex) {
+  if (sunMasks[tex]) return sunMasks[tex];
+  const w = 1024, h = 512;
+  const cv = document.createElement('canvas');
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext('2d');
+  ctx.drawImage(tex.image, 0, 0, w, h);
+  const img = ctx.getImageData(0, 0, w, h), d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    const lum = (d[i] * 0.2126 + d[i + 1] * 0.7152 + d[i + 2] * 0.0722) / 255;
+    // Only the hottest patches stay opaque — everything below LUM_LO is fully
+    // transparent, so the shell reads as drifting hot spots, not a second globe.
+    const t = clamp((lum - 0.62) / (0.92 - 0.62), 0, 1);
+    const a = Math.pow(t, 1.4) * 255;
+    // three.js's alphaMap samples the GREEN channel — store the mask in RGB,
+    // not in the alpha channel (which would be ignored).
+    d[i] = d[i + 1] = d[i + 2] = a;
+    d[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const mask = new THREE.CanvasTexture(cv);
+  mask.anisotropy = maxAniso;
+  sunMasks[tex] = mask;
+  return mask;
+}
+
 const sunMesh = new THREE.Mesh(
   new THREE.SphereGeometry(SUN_R, 64, 32),
   new THREE.MeshBasicMaterial({ map: procMaps.sun })
 );
 sunMesh.userData.bodyKey = 'sun';
 scene.add(sunMesh);
+
+// Shell layer (the cloud-layer trick, applied to the Sun): a slightly larger
+// sphere wearing the SAME map, but only its bright parts are visible (alpha
+// mask from luminance). It counter-rotates at a different rate than the base
+// mesh, so the hot patches drift slowly across the surface — a second, larger
+// motion scale on top of the granulation shimmer in the base shader.
+const sunShell = new THREE.Mesh(
+  new THREE.SphereGeometry(SUN_R * 1.012, 64, 32),
+  new THREE.MeshBasicMaterial({
+    map: procMaps.sun, alphaMap: makeSunAlphaMask(procMaps.sun),
+    transparent: true, depthWrite: false, color: 0xffffff
+  })
+);
+scene.add(sunShell);
 
 const glow = new THREE.Sprite(new THREE.SpriteMaterial({
   map: makeGlowTexture(), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
@@ -1455,6 +1511,11 @@ scene.add(glow);
 // Both run on their own capped clock (see sunAnimDays), so even at high sim
 // speed the motion stays smooth instead of strobing past the texture.
 const SUN_ROT_EQUATOR_DAYS = 25.38, SUN_ROT_POLAR_DAYS = 35.0;
+// The shell layer's rigid spin: a LONGER period than the base mesh AND in the
+// opposite direction, so its bright patches drift slowly across the surface
+// (relative rate ≈ 1/25.4 + 1/40 turns/day) — a second motion scale on top of
+// the granulation shimmer.
+const SUN_SHELL_ROT_DAYS = 40;
 const granTex = makeSunGranulationTexture();
 const sunUniforms = {
   uSunTime: { value: 0 },   // in days (capped animation clock)
@@ -2010,6 +2071,7 @@ function layoutCompare() {
   // planets (~10× Jupiter), so kids see just how vast it is. Only its lower limb
   // fits on screen, like a giant rising sun.
   sunMesh.scale.setScalar(CMP_SUN_R / SUN_R);
+  sunShell.scale.copy(sunMesh.scale);      // shell stays a hair larger than the base
   glowBaseScale = CMP_SUN_R * 3;           // corona hugging the limb (5.2× would wash out the row)
   glow.scale.setScalar(glowBaseScale);
   sunMesh.position.set(0, COMPARE_SUN_Y, 0);
@@ -2054,6 +2116,7 @@ function setCompareMode(on) {
     applyRealScale(realScale);     // restore sizes + shadow uniforms for the user's size mode
     updatePositions();             // send everything back to its orbit
     sunMesh.scale.setScalar(1);
+    sunShell.scale.setScalar(1);
     glowBaseScale = SUN_R * 5.2;
     glow.scale.setScalar(glowBaseScale);
     sunMesh.position.set(0, 0, 0);
@@ -3025,10 +3088,13 @@ function animate(now) {
   if (!paused) sunAnimDays += Math.min(daysPerSecond, SUN_ANIM_CAP_DPS) * dt;
   sunUniforms.uSunTime.value = sunAnimDays;
   sunMesh.rotation.y = (sunAnimDays / SUN_ROT_EQUATOR_DAYS % 1) * Math.PI * 2;
+  // shell layer: counter-rotating at its own slower rate → drifting hot patches
+  sunShell.rotation.y = -(sunAnimDays / SUN_SHELL_ROT_DAYS % 1) * Math.PI * 2;
   const gPulse = 1 + 0.035 * Math.sin(sunAnimDays * 2.4);
   glow.scale.setScalar(glowBaseScale * gPulse);
   const b = 0.965 + 0.035 * Math.sin(sunAnimDays * 1.7 + 1.3);
   sunMesh.material.color.setRGB(b, b, b);
+  sunShell.material.color.setRGB(b, b, b);   // shell breathes with the base
 
   // special flight targets (eclipse view / home)
   if (flight && flight.key === '__eclipseView') {
