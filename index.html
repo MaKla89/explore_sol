@@ -2832,7 +2832,7 @@ $('labelsBtn').onclick = () => {
 // --- real-size mode: true-to-scale planet radii (off by default) --------
 function refreshScaleBtn() { $('scaleBtn').classList.toggle('active', realScale); }
 $('scaleBtn').onclick = () => {
-  if (compareMode) setCompareMode(false);   // the two size views are mutually exclusive
+  if (compareMode) { setCompareMode(false); refreshCompareBtn(); }   // the two size views are mutually exclusive
   realScale = !realScale;
   localStorage.setItem('ssx_realscale', realScale ? '1' : '0');
   refreshScaleBtn();
@@ -2845,7 +2845,7 @@ function refreshCompareBtn() { $('compareBtn').classList.toggle('active', compar
 $('compareBtn').onclick = () => {
   const on = !compareMode;
   localStorage.setItem('ssx_compare', on ? '1' : '0');
-  if (eclipseMode) stopEclipse();   // the eclipse needs the real orbits
+  if (on && eclipseMode) stopEclipse();   // the eclipse needs the real orbits — same as startEclipse does for Compare
   setCompareMode(on);
   refreshCompareBtn();
   if (on) {
@@ -3002,8 +3002,9 @@ function refreshSpeedUI() {
   if (Math.abs(parseFloat(speedSlider.value) - target) > 1e-9) speedSlider.value = target;
 }
 speedSlider.addEventListener('input', () => {
-  if (eclipseMode) stopEclipse();   // first: restore saved speed, then override below
-  daysPerSecond = Math.pow(10, parseFloat(speedSlider.value));
+  const v = parseFloat(speedSlider.value);   // read FIRST — stopEclipse() moves the thumb back to the saved speed
+  if (eclipseMode) stopEclipse();            // restore saved speed, then override below with the drag
+  daysPerSecond = Math.pow(10, v);
   paused = false;
   refreshSpeedUI(); refreshPlayBtn();
 });
