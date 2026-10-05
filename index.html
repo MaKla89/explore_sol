@@ -2075,6 +2075,7 @@ function layoutCompare() {
   glowBaseScale = CMP_SUN_R * 3;           // corona hugging the limb (5.2× would wash out the row)
   glow.scale.setScalar(glowBaseScale);
   sunMesh.position.set(0, COMPARE_SUN_Y, 0);
+  sunShell.position.copy(sunMesh.position); // shell rides with the base mesh
   glow.position.copy(sunMesh.position);
   sunLight.position.copy(sunMesh.position);
 
@@ -2120,6 +2121,7 @@ function setCompareMode(on) {
     glowBaseScale = SUN_R * 5.2;
     glow.scale.setScalar(glowBaseScale);
     sunMesh.position.set(0, 0, 0);
+    sunShell.position.set(0, 0, 0);
     glow.position.set(0, 0, 0);
     sunLight.position.set(0, 0, 0);
   }
