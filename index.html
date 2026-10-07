@@ -1272,13 +1272,18 @@ function initProcPool() {
   try { procWorkers = []; for (let i = 0; i < POOL_SIZE; i++) procWorkers.push(makeProcWorker()); }
   catch (e) { workerBroken = true; procWorkers = null; }
 }
+// Returns { promise, id } — id is exposed so a timeout can cancel the pending
+// entry. (The id cannot be attached to the promise from inside its own executor:
+// the executor runs before the promise variable is assigned.)
 function genViaWorker(job) {
-  return new Promise((res, rej) => {
+  let id = 0;
+  const promise = new Promise((res, rej) => {
     const wk = procWorkers[_rr++ % procWorkers.length];
-    const id = ++_wid;
+    id = ++_wid;
     procPending.set(id, { res, rej });
     wk.postMessage({ id, kind: job.kind, params: job.params, w: job.w, h: job.h });
   });
+  return { promise, id };
 }
 
 // build the final canvas from raw pixels (craters are drawn on the main thread)
@@ -1305,13 +1310,22 @@ function finishCanvas(job, rgba) {
 async function runProcJob(job) {
   let canvas = null;
   if (!workerBroken && procWorkers) {
+    const { promise, id } = genViaWorker(job);
+    let timer;
     try {
       const out = await Promise.race([
-        genViaWorker(job),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('proc worker timeout')), 20000)),
+        promise,
+        new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('proc worker timeout')), 20000); }),
       ]);
       canvas = finishCanvas(job, out.rgba);
-    } catch (e) { workerBroken = true; canvas = null; }
+    } catch (e) {
+      workerBroken = true; canvas = null;
+      // on a timeout the worker may still answer later — drop the pending
+      // entry so a late reply can't resurrect (and double-write) an abandoned job
+      procPending.delete(id);
+    } finally {
+      clearTimeout(timer);
+    }
   }
   if (!canvas) canvas = syncCanvas(job.kind, job.params, job.w, job.h);   // fallback: original synchronous path
   if (canvas) { job.tex.image = canvas; job.tex.needsUpdate = true; }
@@ -1410,6 +1424,9 @@ function attachSky(tex) {
     scene.add(milkySky);
   }
   milkySky.material.map = tex;
+  // map null → texture changes the compiled program (no UV/texture sampling
+  // code existed before); bump the material so three.js recompiles it.
+  milkySky.material.needsUpdate = true;
   milkySky.visible = true;
 }
 function hideSky() { if (milkySky) milkySky.visible = false; }
@@ -2023,7 +2040,6 @@ const CMP_VIEW_POS = new THREE.Vector3(20.3, 19.2, 41); // camera spot that fram
 const CMP_LOOK = new THREE.Vector3(0, 8, 0);           // where it looks (just above the row)
 const cmpR = key => CMP_JUP_R * REAL_KM[key] / REAL_KM.jupiter;   // true size relative to the planets
 const CMP_SUN_R = CMP_JUP_R * REAL_KM.sun / REAL_KM.jupiter;      // Sun at TRUE scale (~10× Jupiter)
-let beltLabel = null;                      // set once the labels are built
 
 function layoutCompare() {
   const order = [...PLANETS].sort((a, b) => REAL_KM[b.key] - REAL_KM[a.key]); // largest → smallest
@@ -2213,8 +2229,7 @@ for (const mk in moons) moons[mk].label = addLabel(mk, scene, 0);
   const sp = makeLabelSprite(t().bodies.belt.name);
   sp.position.set((BELT_INNER + BELT_OUTER) / 2, 2.5, 0);
   scene.add(sp);
-  labelSprites.push({ sp, key: 'belt' });
-  beltLabel = sp;   // kept so Compare mode can hide it with the belt
+  labelSprites.push({ sp, key: 'belt' });   // hidden in Compare mode by applyLabelMode()
 }
 
 // --- eclipse shadow cones (educational overlay) ------------------------
@@ -2320,6 +2335,21 @@ camera.rotation.set(yawPitch.pitch, yawPitch.yaw, 0);
 let followKey = null;          // body key being followed
 let followOffset = new THREE.Vector3();
 let flight = null;             // { from, t, dur, key }
+
+// Stop following / flying. yawPitch MUST be re-read from the camera here: while
+// following, every frame ends in camera.lookAt(), so yawPitch is stale. Without
+// this sync the next mouse drag (applyLook → camera.rotation.set(yawPitch…))
+// snaps the view back to the orientation it had BEFORE the flight.
+function stopFollowing() {
+  followKey = null;
+  flight = null;
+  spinTheta = 0;
+  spinPhi = 0;
+  yawPitch.yaw = camera.rotation.y;
+  yawPitch.pitch = clamp(camera.rotation.x, -1.55, 1.55);
+  camera.rotation.set(yawPitch.pitch, yawPitch.yaw, 0);
+  hideInfo();
+}
 
 const HOME_POS = new THREE.Vector3(0, 70, 165);
 
@@ -2442,7 +2472,7 @@ addEventListener('keydown', e => {
   input.keys.add(k === 'control' ? 'control' : k);
   if (k === 'escape') {
     if ($('helpModal').style.display === 'flex') closeHelp();
-    else if (followKey || flight) { followKey = null; flight = null; hideInfo(); }
+    else if (followKey || flight) stopFollowing();
     else if (eclipseMode) stopEclipse();   // documented exit: Esc returns to normal time
   }
 });
@@ -2588,7 +2618,7 @@ function endPointer(e) {
       raycaster.setFromCamera(mouseNDC, camera);
       const hits = raycaster.intersectObjects(pickables, false);
       if (hits.length) startFlightTo(hits[0].object.userData.bodyKey);
-      else if (followKey) { followKey = null; flight = null; spinTheta = 0; spinPhi = 0; hideInfo(); }
+      else if (followKey) stopFollowing();
     }
   }
 }
@@ -2927,6 +2957,28 @@ function applyTexMode() {
     b.classList.toggle('active', b.dataset.q === quality));
 }
 let qualityBusy = false;
+// Free the GPU memory of photo tiers that are no longer in use. photoTex is
+// keyed "quality:key", so cycling low→medium→high→medium would otherwise keep
+// BOTH full texture sets in VRAM forever — exactly what the ⚖️ saver tier is
+// meant to avoid. Must run AFTER applyTexMode() swapped every material onto
+// the new tier's textures, so no material can still reference a disposed one.
+function disposePhotoTexturesExcept(q) {
+  const keep = q + ':';
+  for (const k of Object.keys(photoTex)) {
+    if (k.startsWith(keep)) continue;
+    const tex = photoTex[k];
+    delete photoTex[k];
+    // the sun shell's alpha mask derived from this map must go with it
+    const mask = sunMasks[tex];
+    if (mask) { delete sunMasks[tex]; mask.dispose(); }
+    // defensive: if the sky still wears this texture, drop the reference
+    if (milkySky && milkySky.material.map === tex) {
+      milkySky.material.map = null;
+      milkySky.material.needsUpdate = true;
+    }
+    tex.dispose();
+  }
+}
 async function setQuality(q) {
   if (q === quality || qualityBusy) return;
   qualityBusy = true;
@@ -2939,7 +2991,10 @@ async function setQuality(q) {
       btn.disabled = true;
       // load this quality's photos in parallel (per-body fallback on error)
       await Promise.all(pendingPhotoKeys(q).map(k => loadPhoto(k, q)));
-      await ensureSky(q);              // swap or fetch the matching sky photo
+      // swap or fetch the matching sky photo; if it can't be loaded, hide the
+      // sky — otherwise it would keep wearing the OLD tier's texture, which is
+      // disposed right below.
+      if (!await ensureSky(q)) hideSky();
       quality = q;
     }
     localStorage.setItem('ssx_quality', q);
@@ -2948,6 +3003,7 @@ async function setQuality(q) {
     qualityBusy = false;
   }
   applyTexMode();
+  disposePhotoTexturesExcept(quality);
 }
 // --- the quality popover -------------------------------------------------
 function openTexMenu() {
