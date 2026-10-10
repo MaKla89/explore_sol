@@ -406,6 +406,8 @@ const I18N = {
     title: 'Solar System Explorer',
     subtitle: 'Fly through space and discover the planets!',
     loading: 'Generating planets…',
+    ctxLostTitle: 'Graphics stopped',
+    ctxLostMsg: 'The browser had to restart its graphics chip — the GPU was overloaded or ran out of graphics memory. Please reload the page; the app will start again.',
     labels: 'Labels',
     places: '🗺 Places',
     placesTitle: 'Where to fly?',
@@ -443,11 +445,12 @@ const I18N = {
       ['Drag mouse', 'Look around'],
       ['W A S D', 'Fly forward / left / back / right'],
       ['Space', 'Fly up'],
-      ['Ctrl', 'Fly down'],
+      ['Ctrl or C', 'Fly down'],
       ['Shift', 'Go faster (hold)'],
       ['Mouse wheel', 'Zoom in / out'],
       ['Click a planet', 'Fly to it and follow it'],
       ['Esc', 'Stop following / close windows'],
+      ['? or h', 'Open / close this help'],
       ['F3', 'Show/hide the performance stats (frame rate, render size, draw calls) — handy if the app feels sluggish. On some laptops you need Fn + F3.'],
       ['Bottom bar', 'Pause time or make it go faster'],
       ['🗺 Places', 'List of every place you can fly to — click one to travel there'],
@@ -566,6 +569,8 @@ const I18N = {
     title: 'Sonnensystem-Entdecker',
     subtitle: 'Fliege durch den Weltraum und entdecke die Planeten!',
     loading: 'Erzeuge Planeten…',
+    ctxLostTitle: 'Grafik wurde neu gestartet',
+    ctxLostMsg: 'Der Browser musste seine Grafik neu starten — die Grafikkarte war überlastet oder der Grafikspeicher ist leer. Bitte lade die Seite neu; die App startet dann erneut.',
     labels: 'Namen',
     places: '🗺 Orte',
     placesTitle: 'Wohin fliegen?',
@@ -602,11 +607,12 @@ const I18N = {
       ['Maus ziehen', 'Umschauen'],
       ['W A S D', 'Vorwärts / links / rückwärts / rechts fliegen'],
       ['Leertaste', 'Nach oben fliegen'],
-      ['Strg (Ctrl)', 'Nach unten fliegen'],
+      ['Strg (Ctrl) oder C', 'Nach unten fliegen'],
       ['Shift', 'Schneller fliegen (gedrückt halten)'],
       ['Mausrad', 'Hinein- / herauszoomen'],
       ['Auf einen Planeten klicken', 'Dorthin fliegen und ihm folgen'],
       ['Esc', 'Folgen beenden / Fenster schließen'],
+      ['? oder h', 'Diese Hilfe öffnen / schließen'],
       ['F3', 'Leistungsanzeige ein-/ausblenden (Bildrate, Rendergröße, Draw Calls) — hilfreich, wenn die App ruckelt. Bei manchen Laptops Fn + F3 drücken.'],
       ['Leiste unten', 'Zeit anhalten oder schneller machen'],
       ['🗺 Orte', 'Liste aller Orte, zu denen du fliegen kannst — anklicken zum Hinfliegen'],
@@ -1168,8 +1174,25 @@ camera.position.set(0, 70, 165);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 // phones get a slightly lower pixel-ratio cap to keep frame rates smooth
 const IS_SMALL = Math.min(innerWidth, innerHeight) < 700;
-renderer.setPixelRatio(Math.min(devicePixelRatio, IS_SMALL ? 1.5 : 2));
+// Fill-rate budget: shading every pixel is what costs the GPU, so cap the
+// TOTAL rendered pixels (css px × ratio²) rather than trusting devicePixelRatio
+// alone. On a 4K panel with a high ratio this keeps weak/integrated GPUs
+// smooth; a normal desktop window stays far below the cap and keeps full sharpness.
+const MAX_RENDER_PIXELS = 6_500_000;
+function pixelRatioFor(w, h) {
+  return Math.min(devicePixelRatio, IS_SMALL ? 1.5 : 2,
+                  Math.sqrt(MAX_RENDER_PIXELS / Math.max(1, w * h)));
+}
+renderer.setPixelRatio(pixelRatioFor(innerWidth, innerHeight));
 renderer.setSize(innerWidth, innerHeight);
+// Weak/overloaded GPUs can lose the WebGL context (browser resets the GPU
+// process). Without a listener the canvas just stays black forever, so say
+// what happened instead of leaving a dead screen. preventDefault is required
+// or the browser never restores the context at all.
+renderer.domElement.addEventListener('webglcontextlost', e => {
+  e.preventDefault();
+  showFatal(t().ctxLostTitle, t().ctxLostMsg);
+});
 // No global shadow map: the Moon's and the rings' shadows are computed
 // analytically inside the planet shaders (see applyAnalyticShadow below) —
 // resolution-independent, always crisp, and far cheaper than a 6-face cube
@@ -2426,7 +2449,7 @@ function updateCamera(dt) {
     if (keys.has('a')) followOffset.addScaledVector(right, -speed);   // A = strafe left
     if (keys.has('d')) followOffset.addScaledVector(right, speed);    // D = strafe right
     if (keys.has(' ')) followOffset.y += speed;
-    if (keys.has('control')) followOffset.y -= speed;
+    if (keys.has('control') || keys.has('c')) followOffset.y -= speed;
     const minD = bodyRadius(followKey) * 1.25, maxD = bodyRadius(followKey) * 40 + 30;
     followOffset.clampLength(minD, maxD);
     camera.position.copy(target).add(followOffset);
@@ -2440,7 +2463,7 @@ function updateCamera(dt) {
     if (keys.has('a')) camera.position.addScaledVector(right, -speed);   // A = strafe left
     if (keys.has('d')) camera.position.addScaledVector(right, speed);    // D = strafe right
     if (keys.has(' ')) camera.position.y += speed;
-    if (keys.has('control')) camera.position.y -= speed;
+    if (keys.has('control') || keys.has('c')) camera.position.y -= speed;
     // soft collision: don't get stuck inside a body.
     // NOTE: the outward direction must be computed BEFORE camera.position is
     // overwritten — `copy(c).addScaledVector(camera.position.clone()...)` reads
@@ -2465,18 +2488,34 @@ function updateCamera(dt) {
 //  Input
 // =====================================================================
 const input = { keys: new Set() };
+// Movement keys are matched by e.code (the PHYSICAL key position), never by
+// e.key: on AZERTY/QWERTZ layouts the physical W/A/S/D keys produce other
+// letters, which silently swapped the flight controls for those users.
+const CODE_KEYS = {
+  KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd',
+  Space: ' ', KeyC: 'c',                       // C = fly down (Ctrl collides with browser shortcuts)
+  ControlLeft: 'control', ControlRight: 'control',
+  ShiftLeft: 'shift', ShiftRight: 'shift',
+};
 addEventListener('keydown', e => {
-  const k = e.key.toLowerCase();
   if (e.key === 'F3') { e.preventDefault(); togglePerf(); return; }
-  if (['w','a','s','d',' '].includes(k)) e.preventDefault();
-  input.keys.add(k === 'control' ? 'control' : k);
-  if (k === 'escape') {
+  if (e.key === 'Escape') {
     if ($('helpModal').style.display === 'flex') closeHelp();
     else if (followKey || flight) stopFollowing();
     else if (eclipseMode) stopEclipse();   // documented exit: Esc returns to normal time
+    return;
   }
+  // the button is labelled "?" — pressing ? on the keyboard must open it too
+  if (e.key === '?' || e.key === 'h' || e.key === 'H') { e.preventDefault(); openHelp(); return; }
+  const k = CODE_KEYS[e.code];
+  if (!k) return;
+  // Space/Enter must still activate a focused button or the app is unusable
+  // with a keyboard only — don't swallow them while a control has focus.
+  if ((k === ' ' || e.code === 'Enter') && e.target.closest && e.target.closest('button, input, select, a')) return;
+  e.preventDefault();
+  input.keys.add(k);
 });
-addEventListener('keyup', e => input.keys.delete(e.key.toLowerCase() === 'control' ? 'control' : e.key.toLowerCase()));
+addEventListener('keyup', e => { const k = CODE_KEYS[e.code]; if (k) input.keys.delete(k); });
 addEventListener('blur', () => input.keys.clear());
 
 const raycaster = new THREE.Raycaster();
@@ -2630,6 +2669,10 @@ renderer.domElement.addEventListener('pointercancel', e => {
 
 // mouse wheel: zoom (dolly) in / out
 addEventListener('wheel', e => {
+  // Never hijack a wheel over the interface: the help card, info card and
+  // places list are scrollable, and stealing their wheel made their content
+  // unreachable with a mouse (the camera zoomed behind the panel instead).
+  if (e.target && e.target.closest && e.target.closest('#ui, #helpModal')) return;
   e.preventDefault();
   const d = e.deltaY;
   if (followKey) {
@@ -2769,6 +2812,7 @@ function hideInfo() { $('infocard').style.display = 'none'; }
 function applyLang() {
   const L = t();
   document.documentElement.lang = lang;
+  document.title = L.title;          // the browser tab must switch language too
   $('uiTitle').textContent = L.title;
   $('uiSubtitle').textContent = L.subtitle;
   $('loadingText').textContent = L.loading;
@@ -3075,6 +3119,9 @@ speedSlider.addEventListener('change', () => {
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
+  // re-apply the fill-rate budget: a window dragged onto a 4K monitor changes
+  // the pixel count, so the ratio has to shrink (or grow back) with it
+  renderer.setPixelRatio(pixelRatioFor(innerWidth, innerHeight));
   renderer.setSize(innerWidth, innerHeight);
 });
 
